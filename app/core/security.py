@@ -83,7 +83,7 @@ def decode_token_ignore_exp(token: str) -> dict:
 async def add_to_blacklist(jti: str, redis: Redis) -> None:
     """로그아웃된 Access Token jti를 블랙리스트에 등록합니다."""
     ttl = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    await redis.setex(f"blacklist:{jti}", ttl, "1")
+    await redis.set(f"blacklist:{jti}", "1", ex=ttl)
 
 
 async def is_blacklisted(jti: str, redis: Redis) -> bool:
@@ -98,7 +98,7 @@ async def is_blacklisted(jti: str, redis: Redis) -> bool:
 async def save_refresh_jti(user_id: int, jti: str, redis: Redis) -> None:
     """Refresh Token jti를 Redis에 저장합니다 (최초 로그인 전용 — 비교 없이 무조건 설정)."""
     ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
-    await redis.setex(f"refresh:{user_id}", ttl, jti)
+    await redis.set(f"refresh:{user_id}", jti, ex=ttl)
 
 
 # GET(비교) → SET을 분리하면 동시 재발급 요청 사이에 경쟁 조건이 생겨, 한 요청이 방금

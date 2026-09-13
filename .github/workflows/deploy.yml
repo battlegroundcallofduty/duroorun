@@ -15,8 +15,47 @@ jobs:
       - run: pip install ruff
       - run: ruff check app/
 
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: duroorun
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/duroorun
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-only-dummy-secret-key-not-used-in-production-32bytes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: pytest
+
   deploy:
-    needs: lint
+    needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to EC2 over SSH

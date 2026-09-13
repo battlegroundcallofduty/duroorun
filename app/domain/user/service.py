@@ -183,10 +183,10 @@ async def _finish_social_login(
             "name": name,
         })
         try:
-            await redis.setex(
+            await redis.set(
                 f"{_PENDING_SIGNUP_PREFIX}{signup_token}",
-                settings.PENDING_SIGNUP_EXPIRE_SECONDS,
                 payload,
+                ex=settings.PENDING_SIGNUP_EXPIRE_SECONDS,
             )
         except RedisError:
             raise HTTPException(
@@ -226,7 +226,7 @@ async def get_kakao_auth_url(redis: Redis) -> tuple[str, str]:
     """카카오 OAuth 인증 URL을 생성하고 state를 Redis에 저장합니다. (url, state)를 반환합니다."""
     state = secrets.token_urlsafe(32)
     try:
-        await redis.setex(f"oauth:state:kakao:{state}", settings.OAUTH_STATE_EXPIRE_SECONDS, "1")
+        await redis.set(f"oauth:state:kakao:{state}", "1", ex=settings.OAUTH_STATE_EXPIRE_SECONDS)
     except RedisError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -329,7 +329,7 @@ async def get_naver_auth_url(redis: Redis) -> tuple[str, str]:
     """네이버 OAuth 인증 URL을 생성하고 state를 Redis에 저장합니다. (url, state)를 반환합니다."""
     state = secrets.token_urlsafe(32)
     try:
-        await redis.setex(f"oauth:state:naver:{state}", settings.OAUTH_STATE_EXPIRE_SECONDS, "1")
+        await redis.set(f"oauth:state:naver:{state}", "1", ex=settings.OAUTH_STATE_EXPIRE_SECONDS)
     except RedisError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -440,7 +440,7 @@ async def get_google_auth_url(redis: Redis) -> tuple[str, str]:
     """구글 OAuth 인증 URL을 생성하고 state를 Redis에 저장합니다. (url, state)를 반환합니다."""
     state = secrets.token_urlsafe(32)
     try:
-        await redis.setex(f"oauth:state:google:{state}", settings.OAUTH_STATE_EXPIRE_SECONDS, "1")
+        await redis.set(f"oauth:state:google:{state}", "1", ex=settings.OAUTH_STATE_EXPIRE_SECONDS)
     except RedisError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
