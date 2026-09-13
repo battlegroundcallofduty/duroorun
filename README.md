@@ -2,7 +2,7 @@
 
 한국 해안 트레일 러닝 서비스 — 두루누비 공식 코스 탐색, 커스텀 코스 생성, 러닝 기록 관리
 
-> 배포 URL: (추후 추가)
+> 배포 URL: https://duroorun.duckdns.org
 
 ---
 
@@ -429,12 +429,14 @@ git restore --staged app/config.py
   └─ git status                                   (변경 파일 확인)
   └─ git add 내파일만                              (본인 파일만 추가)
   └─ git diff --staged --stat                     (스테이징 확인)
-  └─ git commit -m "[타입] 작업내용"               (커밋)
+  └─ git commit -m "[담당 도메인] 작업내용"          (커밋, 예: [user_admin] ...)
   └─ git fetch origin && git merge origin/main    (PR 전 다시 최신화)
   └─ git push origin 내브랜치                      (푸시)
   └─ GitHub에서 PR 생성 → 팀원 리뷰 → 머지
   └─ 머지 후 전체 팀원 git fetch origin && git merge origin/main
 ```
+
+> ⚠️ **`main`에 머지되는 순간 GitHub Actions가 자동으로 실제 서버에 배포합니다** (`.github/workflows/deploy.yml`: lint → test 통과 시 즉시 배포). "머지 = 배포"이니 신중하게 머지하세요.
 
 ---
 
@@ -447,7 +449,7 @@ git restore --staged app/config.py
 - `.env` 절대 커밋 금지 (`.gitignore`에 포함). `.env.example`로 필요한 변수 목록만 공유
 - JWT: Access Token(30분, localStorage) + Refresh Token(14일, httpOnly 쿠키). Refresh는 유저당 1개 저장(Redis `refresh:{user_id}`), 재발급 시 토큰 로테이션
 - 로그아웃/탈퇴 시 Access는 Redis 블랙리스트(`blacklist:{access_jti}`) 등록, Refresh는 Redis에서 삭제
-- Refresh 쿠키는 `/api/v1/auth/refresh` 경로 한정. 환경 분기: 로컬 `secure=False`/`samesite=lax`, 프로덕션 `secure=True`/`samesite=none`
+- Refresh 쿠키는 `/api/v1/auth/refresh` 경로 한정. `samesite=lax`는 로컬/프로덕션 공통, `secure`만 환경 분기(로컬 `False`, 프로덕션 `True`) — 프론트/API가 완전히 같은 도메인이라 `lax`로 충분함
 - CORS 허용 주소 명시 (`*` 사용 금지, 우리 프론트 주소만 허용). httpOnly 쿠키 사용으로 `allow_credentials=True` 필수, 프론트는 `credentials: 'include'`
 - 소셜 로그인 OAuth state 검증 필수 (CSRF 방지). state는 Redis(`oauth:state:{provider}:{state}`, TTL 5분) 저장 + 로그인을 시작한 브라우저인지 확인하는 짧은 만료의 `oauth_state` httpOnly 쿠키로 이중 검증
 - API 소유권 검증 필수 (본인 리소스만 수정/삭제 가능. `user_id` 검증 챙기기)
@@ -461,13 +463,15 @@ DB 트랜잭션 성공(commit) 후에 R2 삭제 API 호출. 트랜잭션 실패 
 
 ---
 
-## 배포 전 체크리스트
+## 배포 체크리스트
 
-실제 배포(AWS EC2 예정) 시점에 반드시 확인해야 할 항목들입니다.
+실제 배포(AWS EC2) 시점에 확인이 필요했던 항목들과 처리 현황입니다.
 
-- **도메인 구조 확정 후 SameSite 정책 재검토**: 지금은 프로덕션에서 모든 인증 관련 쿠키(`refresh_token`, `oauth_state`)를 `samesite=none`으로 설정해둠 (어떤 도메인 구조든 동작하는 안전한 기본값). 프론트/API를 **같은 사이트의 서브도메인**(예: `app.duroorun.com` / `api.duroorun.com`, `COOKIE_DOMAIN=.duroorun.com`)으로 배포하기로 확정되면 `samesite=lax`로 좁히는 걸 검토. 완전히 다른 도메인을 쓴다면 `none` 유지 + `/auth/refresh`에 Origin 검증 등 CSRF 방어 추가 고려
-- **운영 환경 `/api` 프록시 설정 필요**: 현재 `frontend/vite.config.js`의 프록시는 로컬 개발 서버 전용. 배포 서버(nginx 등)에 `/api` → 백엔드 rewrite/프록시 설정이 없으면 프론트의 모든 API 요청이 404남. 별도 프록시가 없다면 프론트 API 베이스 URL을 환경변수로 분리하는 것도 고려
-- **`COOKIE_DOMAIN` 환경변수 설정**: `.env.example`에 안내된 대로 프로덕션에서 `.duroorun.com` 형태로 설정 필요 (프론트/API가 다른 서브도메인이면 필수)
-- **`JWT_SECRET_KEY` 길이 확인**: 로컬 개발 중 `InsecureKeyLengthWarning`(HMAC 키가 32바이트 미만) 경고가 뜬 적 있음. 배포용 시크릿 키는 32바이트 이상으로 새로 생성
-- **자동화된 인증 테스트 부재**: 현재 `tests/` 디렉토리가 비어있고 CI 체크도 없음. 최소한 로그인/토큰 재발급/실패 케이스 테스트 추가 검토
-- **`ix_users_nickname_trgm` 인덱스 정상 생성 확인** (`CREATE INDEX CONCURRENTLY`, `53a73e916494`): CONCURRENTLY는 중간에 실패해도 알아채기 어렵게 INVALID 인덱스를 조용히 남길 수 있음. 이 마이그레이션을 배포한 뒤 `SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indexrelid = 'ix_users_nickname_trgm'::regclass;`로 `indisvalid`가 `true`인지 확인. `false`면 `DROP INDEX CONCURRENTLY ix_users_nickname_trgm` 후 재실행
+- ✅ **SameSite 정책**: 프론트/API가 완전히 같은 도메인(`duroorun.duckdns.org`)으로 확정되어 `samesite=lax`로 통일함 (로컬/프로덕션 동일, `secure`만 분기)
+- ✅ **운영 환경 `/api` 프록시**: nginx에서 `/api/` → `127.0.0.1:8000` proxy_pass 설정 완료
+- ✅ **`COOKIE_DOMAIN`**: 같은 도메인 구조라 비워둠(`domain=None`)이 정답 — 별도 설정 불필요
+- ✅ **`JWT_SECRET_KEY` 길이**: 32바이트 이상 새 키로 교체 완료 (로컬/프로덕션 각각 별도 키)
+- ✅ **자동화된 인증 테스트**: `tests/` 전체 테스트를 `.github/workflows/deploy.yml`의 `test` 잡(postgres+redis 서비스 컨테이너 + alembic 마이그레이션 후 pytest)으로 CI에 연결함. `lint` → `test` 통과해야 `deploy` 실행됨
+- ✅ **`ix_users_nickname_trgm` 인덱스 정상 생성 확인** (`CREATE INDEX CONCURRENTLY`, `53a73e916494`): `SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indexrelid = 'ix_users_nickname_trgm'::regclass;`로 `indisvalid = true` 확인함
+
+새로 배포 관련 작업을 할 때는 이 섹션에 항목을 추가하고, 처리되면 위처럼 체크 표시로 남겨주세요.
