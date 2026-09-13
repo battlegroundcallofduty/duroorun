@@ -44,6 +44,9 @@ jobs:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/duroorun
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET_KEY: ci-only-dummy-secret-key-not-used-in-production-32bytes
+      R2_ACCOUNT_ID: ci-dummy-account
+      R2_ACCESS_KEY_ID: ci-dummy-key
+      R2_SECRET_ACCESS_KEY: ci-dummy-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
