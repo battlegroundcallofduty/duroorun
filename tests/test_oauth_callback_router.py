@@ -36,7 +36,7 @@ async def test_kakao_callback_redirects_new_user_to_onboarding_with_signup_token
 ):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         res = await async_client.get(
@@ -70,7 +70,7 @@ async def test_kakao_callback_redirects_existing_user_with_refresh_cookie(
     await db_session.commit()
 
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     try:
         with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):

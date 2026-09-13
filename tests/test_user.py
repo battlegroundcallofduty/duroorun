@@ -100,7 +100,7 @@ async def _make_user(db_session, ctx: UserTestContext) -> User:
 async def test_kakao_login_creates_new_user(db_session, ctx, redis_client):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
@@ -150,7 +150,7 @@ async def test_complete_signup_allows_retry_after_duplicate_nickname(db_session,
 
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
             code="fake-code", state=state, cookie_state=state, db=db_session, redis=redis_client
@@ -184,7 +184,7 @@ async def test_complete_signup_rejects_missing_agreement_and_allows_retry(
 ):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
             code="fake-code", state=state, cookie_state=state, db=db_session, redis=redis_client
@@ -231,7 +231,7 @@ async def test_complete_signup_rejects_unknown_token(db_session, redis_client):
 async def test_complete_signup_rejects_concurrent_duplicate_request(db_session, redis_client):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
             code="fake-code", state=state, cookie_state=state, db=db_session, redis=redis_client
@@ -270,7 +270,7 @@ async def test_kakao_login_existing_account_reuses_user(db_session, ctx, redis_c
     await db_session.commit()
 
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
@@ -741,7 +741,7 @@ async def test_complete_signup_succeeds_even_if_last_login_update_fails(
     """
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
@@ -803,11 +803,11 @@ async def test_get_public_profile_rejects_withdrawn_or_missing_user(db_session, 
 async def test_kakao_login_returns_503_on_redis_setex_failure(db_session, redis_client):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
 
     with (
         patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)),
-        patch.object(redis_client, "setex", side_effect=RedisError("boom")),
+        patch.object(redis_client, "set", side_effect=RedisError("boom")),
     ):
         with pytest.raises(HTTPException) as exc_info:
             await kakao_login(
@@ -821,7 +821,7 @@ async def test_kakao_login_returns_503_on_redis_setex_failure(db_session, redis_
 async def test_complete_signup_returns_503_on_redis_get_failure(db_session, redis_client):
     provider_uid = uuid.uuid4().hex
     state = uuid.uuid4().hex
-    await redis_client.setex(f"oauth:state:kakao:{state}", 300, "1")
+    await redis_client.set(f"oauth:state:kakao:{state}", "1", ex=300)
     with patch("httpx.AsyncClient", return_value=_fake_kakao_client(provider_uid)):
         login_result = await kakao_login(
             code="fake-code", state=state, cookie_state=state, db=db_session, redis=redis_client
