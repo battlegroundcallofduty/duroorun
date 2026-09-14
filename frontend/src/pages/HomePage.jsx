@@ -17,21 +17,21 @@ export default function Home() {
         <div className="route-line route-one" />
         <div className="route-line route-two" />
         <div className="hero-copy">
-          <div className="eyebrow"><span />대한민국 해안 트레일 러닝</div>
-          <h1>바다를 따라,<br /><em>나답게 달려요</em></h1>
-          <p>두루누비의 아름다운 해안길부터 러너들이 만든 특별한 코스까지.<br />오늘 달리고 싶은 길을 발견해보세요.</p>
+          <div className="eyebrow"><span />강원을 두루 달리다</div>
+          <h1>나답게 달리는 길,<br /><em>두루런</em></h1>
+          <p>강원의 바다와 산, 도시 곳곳의 러닝 코스부터 러너들이 직접 만든 특별한 길까지.<br />달리는 동안 주변 관광지도 함께 만나보세요.</p>
           <div className="hero-buttons">
             <a className="primary-button" href="#courses">코스 둘러보기 <span>→</span></a>
             <a className="text-button" href="#how">두루런 사용법 <span>↘</span></a>
           </div>
           <div className="quick-stats" aria-label="서비스 통계">
-            <div><strong>50+</strong><span>공식 해안 코스</span></div>
+            <div><strong>50+</strong><span>강원 추천 코스</span></div>
             <div><strong>1,284</strong><span>누적 완주 기록</span></div>
             <div><strong>4.8</strong><span>러너 만족도</span></div>
           </div>
         </div>
 
-        <div className="hero-visual" aria-label="해안길을 달리는 두루미 캐릭터">
+        <div className="hero-visual" aria-label="강원을 달리는 두루미 캐릭터">
           <div className="sun" />
           <div className="mountain mountain-back" />
           <div className="mountain mountain-front" />
@@ -60,8 +60,8 @@ export default function Home() {
       <section className="how" id="how">
         <div><span className="section-kicker">두루런 사용법</span><h2>길을 찾고, 달리고,<br />기록을 남겨요.</h2></div>
         <div className="steps">
-          <div><b>01</b><strong>코스 발견</strong><span>내게 맞는 해안 코스를 찾아요</span></div>
-          <div><b>02</b><strong>러닝 시작</strong><span>GPS로 안전하게 기록해요</span></div>
+          <div><b>01</b><strong>코스 발견</strong><span>내게 맞는 강원 코스를 찾아요</span></div>
+          <div><b>02</b><strong>러닝 시작</strong><span>AI 날씨·안전 브리핑과 함께 달려요</span></div>
           <div><b>03</b><strong>완주 인증</strong><span>나만의 발자국을 남겨요</span></div>
         </div>
       </section>
