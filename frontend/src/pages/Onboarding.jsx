@@ -2,13 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { apiFetch, setAccessToken } from '../api';
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from '../content/legal';
 import { useUser } from '../contexts/UserContext';
-
-// TODO: 실제 이용약관/개인정보처리방침 문구로 교체
-const TERMS_PLACEHOLDER = `[이용약관 및 개인정보처리방침 - 준비 중]
-
-두루런 서비스 이용을 위해 아래 약관에 동의해주세요.
-(실제 약관 문구는 추후 반영 예정입니다)`;
 
 const Onboarding = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -85,7 +80,18 @@ const Onboarding = () => {
         <h1>거의 다 왔어요!</h1>
         <p className="onboarding-desc">약관에 동의하고, 두루런에서 쓸 닉네임과 거주지를 알려주세요</p>
 
-        <div className="onboarding-terms-box">{TERMS_PLACEHOLDER}</div>
+        <section className="onboarding-legal" aria-label="이용약관 및 개인정보처리방침">
+          <details open>
+            <summary>이용약관 보기</summary>
+            <div className="onboarding-terms-box">{TERMS_OF_SERVICE}</div>
+          </details>
+
+          <details>
+            <summary>개인정보처리방침 보기</summary>
+            <div className="onboarding-terms-box">{PRIVACY_POLICY}</div>
+          </details>
+        </section>
+
         <label className="onboarding-checkbox">
           <input
             type="checkbox"
