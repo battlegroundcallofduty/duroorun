@@ -1,14 +1,41 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
 
-const courses = [
-  { region: '강원 고성', title: '해파랑길 49코스', meta: '12.3km · 약 3시간', level: '보통', color: 'blue' },
-  { region: '강원 속초', title: '영랑호 둘레길', meta: '8.1km · 약 1시간 20분', level: '쉬움', color: 'green' },
-  { region: '강원 양양', title: '낙산 해변 코스', meta: '16.8km · 약 3시간 40분', level: '어려움', color: 'red' },
-];
+const CARD_COLORS = ['blue', 'green', 'red'];
+const COURSE_TYPE_LABEL = { DRNB: '공식', CUSTOM: '커스텀' };
 
 export default function Home() {
+  const [popularCourses, setPopularCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [popularRes, statsRes] = await Promise.all([
+          apiFetch('/v1/courses/popular?limit=3'),
+          apiFetch('/v1/courses/landing-stats'),
+        ]);
+        if (cancelled) return;
+        if (popularRes.ok) setPopularCourses(await popularRes.json());
+        if (statsRes.ok) setStats(await statsRes.json());
+      } catch {
+        // 랜딩페이지 보조 섹션이라 실패해도 조용히 빈 상태로 둠
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const topCourse = popularCourses[0];
+
   return (
     <main>
       <Header />
@@ -21,13 +48,12 @@ export default function Home() {
           <h1>나답게 달리는 길,<br /><em>두루런</em></h1>
           <p>강원의 바다와 산, 도시 곳곳의 러닝 코스부터 러너들이 직접 만든 특별한 길까지.<br />달리는 동안 주변 관광지도 함께 만나보세요.</p>
           <div className="hero-buttons">
-            <a className="primary-button" href="#courses">코스 둘러보기 <span>→</span></a>
-            <a className="text-button" href="#how">두루런 사용법 <span>↘</span></a>
+            <Link className="primary-button" to="/courses">코스 둘러보기 <span>→</span></Link>
           </div>
           <div className="quick-stats" aria-label="서비스 통계">
-            <div><strong>50+</strong><span>강원 추천 코스</span></div>
-            <div><strong>1,284</strong><span>누적 완주 기록</span></div>
-            <div><strong>4.8</strong><span>러너 만족도</span></div>
+            <div><strong>{stats ? stats.total_courses : '-'}</strong><span>강원 추천 코스</span></div>
+            <div><strong>{stats ? stats.total_completions.toLocaleString() : '-'}</strong><span>누적 완주 기록</span></div>
+            <div><strong>{stats ? stats.total_reviews.toLocaleString() : '-'}</strong><span>누적 리뷰 수</span></div>
           </div>
         </div>
 
@@ -38,23 +64,45 @@ export default function Home() {
           <div className="sea"><i /><i /><i /></div>
           <img className="crane" src="/assets/durumi.png" alt="두루런 대표 캐릭터 두루미" />
           <div className="crane-message"><span>오늘도</span><strong>함께 달려요!</strong></div>
-          <div className="location-pill"><span className="pin">●</span><div><small>지금 인기 있는 코스</small><strong>해파랑길 49코스</strong></div></div>
+          {topCourse && (
+            <div className="location-pill">
+              <span className="pin">●</span>
+              <div><small>지금 인기 있는 코스</small><strong>{topCourse.course_name}</strong></div>
+            </div>
+          )}
         </div>
       </section>
 
       <section className="discovery" id="courses">
         <div className="section-heading">
-          <div><span className="section-kicker">이번 주 추천</span><h2>어떤 길을 달려볼까요?</h2></div>
+          <div><span className="section-kicker">지금 인기 있는 코스</span><h2>어떤 길을 달려볼까요?</h2></div>
           <Link to="/courses">전체 코스 보기 <span>→</span></Link>
         </div>
-        <div className="course-grid">
-          {courses.map((course, index) => (
-            <article className={`course-card ${course.color}`} key={course.title}>
-              <div className="course-art"><span className="course-number">0{index + 1}</span><div className="mini-route" /><span className="course-badge">{course.level}</span></div>
-              <div className="course-info"><span>{course.region}</span><h3>{course.title}</h3><p>{course.meta}</p></div>
-            </article>
-          ))}
-        </div>
+        {loading && <p className="course-list-status">불러오는 중...</p>}
+        {!loading && popularCourses.length === 0 && (
+          <p className="course-list-status">아직 완주 기록이 없어요. 첫 번째 완주자가 되어보세요!</p>
+        )}
+        {!loading && popularCourses.length > 0 && (
+          <div className="course-grid">
+            {popularCourses.map((course, index) => (
+              <Link
+                className={`course-card ${CARD_COLORS[index % CARD_COLORS.length]}`}
+                key={course.course_id}
+                to={`/courses/${course.course_type.toLowerCase()}/${course.course_id}`}
+              >
+                <div className="course-art">
+                  <span className="course-number">0{index + 1}</span>
+                  <div className="mini-route" />
+                  <span className="course-badge">{COURSE_TYPE_LABEL[course.course_type] ?? course.course_type}</span>
+                </div>
+                <div className="course-info">
+                  <span>{course.completion_count}회 완주</span>
+                  <h3>{course.course_name}</h3>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="how" id="how">

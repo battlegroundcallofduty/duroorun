@@ -369,7 +369,7 @@ async def test_popular_courses_tiebreak_by_review_count(db_session, ctx):
         )
     await db_session.commit()
 
-    results = await admin_service._get_popular_courses(db_session, CourseType.CUSTOM, 50)
+    results = await admin_service.get_popular_courses(db_session, CourseType.CUSTOM, 50)
     result_course_ids = [item.course_id for item in results]
 
     assert result_course_ids.index(course_more_reviews.course_id) < result_course_ids.index(

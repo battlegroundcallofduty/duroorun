@@ -264,7 +264,7 @@ async def get_record_stats(db: AsyncSession) -> RecordStatsResponse:
     )
 
 
-async def _get_popular_courses(
+async def get_popular_courses(
     db: AsyncSession, course_type: CourseType | None, limit: int
 ) -> list[CoursePopularityItem]:
     """완주 횟수 기준 인기 코스 랭킹 (course_type=None이면 전체).
@@ -330,9 +330,9 @@ async def get_course_stats(db: AsyncSession) -> CourseStatsResponse:
     )
 
     return CourseStatsResponse(
-        popular_overall=await _get_popular_courses(db, None, 5),
-        popular_drnb=await _get_popular_courses(db, CourseType.DRNB, 3),
-        popular_custom=await _get_popular_courses(db, CourseType.CUSTOM, 3),
+        popular_overall=await get_popular_courses(db, None, 5),
+        popular_drnb=await get_popular_courses(db, CourseType.DRNB, 3),
+        popular_custom=await get_popular_courses(db, CourseType.CUSTOM, 3),
         total_custom_courses=total_custom_courses,
         custom_course_registrations=custom_course_registrations,
     )

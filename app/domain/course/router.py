@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rate_limit import rate_limit_per_request
 from app.core.security import get_current_user
 from app.database import get_db
+from app.domain.admin.schemas import CoursePopularityItem
+from app.domain.admin.service import get_popular_courses
 from app.domain.course import attraction_service, weather_service
 from app.domain.course import service as course_service
-from app.domain.course.models import Difficulty
+from app.domain.course.models import CourseType, Difficulty
 from app.domain.course.schemas import (
     GANGWON_BOUNDARY_PATH,
     CourseCreateRequest,
@@ -18,6 +20,7 @@ from app.domain.course.schemas import (
     CustomCourseListResponse,
     DrnbCourseDetailResponse,
     DrnbCourseListResponse,
+    LandingStatsResponse,
     NearbyAttractionListResponse,
     SigunOptionsResponse,
     WeatherBriefingResponse,
@@ -50,6 +53,24 @@ async def get_gangwon_boundary():
         media_type="application/geo+json",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+@router.get("/landing-stats", response_model=LandingStatsResponse)
+async def get_landing_stats(session: AsyncSession = Depends(get_db)):
+    """랜딩페이지 통계 요약(총 코스 수 / 누적 완주 기록 / 총 리뷰 수) 조회. 공개, 인증 불필요."""
+    return await course_service.get_landing_stats(session)
+
+
+@router.get("/popular", response_model=list[CoursePopularityItem])
+async def get_popular(
+    course_type: CourseType | None = Query(default=None),
+    limit: int = Query(default=5, ge=1, le=10),
+    session: AsyncSession = Depends(get_db),
+):
+    """완주 횟수 기준 인기 코스 목록 조회 (랜딩페이지 "인기 코스" 섹션용).
+    ㅡ course_type 생략 시 DRNB+CUSTOM 통합 랭킹. 공개 정보라 인증 불필요.
+    ㅡ 관리자 대시보드 통계(get_popular_courses)와 동일 로직 재사용."""
+    return await get_popular_courses(session, course_type, limit)
 
 
 @router.get("/{course_id}/weather-briefing", response_model=WeatherBriefingResponse)

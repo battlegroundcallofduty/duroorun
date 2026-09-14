@@ -12,7 +12,7 @@ button { font:inherit; }
 .brand-mark:after { content:''; position:absolute; width:7px; height:7px; border-radius:50%; background:var(--red); right:-1px; top:-4px; }
 nav { display:flex; gap:42px; font-size:15px; color:#264748; }
 nav a { position:relative; }
-nav a:first-child:after { content:''; position:absolute; height:2px; background:var(--green); left:0; right:0; bottom:-9px; }
+nav a.active:after { content:''; position:absolute; height:2px; background:var(--green); left:0; right:0; bottom:-9px; }
 .header-actions { display:flex; gap:10px; align-items:center; }
 .login-button { border:1px solid #b7c3bd; border-radius:22px; background:rgba(255,255,255,.65); padding:10px 21px; color:var(--ink); cursor:pointer; }
 .hero { min-height:720px; background:linear-gradient(105deg,#f8f6ef 0%,#f2f6ed 48%,#dfece7 100%); display:grid; grid-template-columns:52% 48%; position:relative; overflow:hidden; padding-top:84px; }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 import { apiFetch, clearAccessToken } from '../../api';
 import { useUser } from '../../contexts/UserContext';
@@ -48,9 +48,9 @@ const Header = () => {
         <span className="brand-mark">두루</span><span>런</span>
       </a>
       <nav aria-label="주요 메뉴">
-        <Link to="/courses">코스 찾기</Link>
-        <Link to="/records">러닝 기록</Link>
-        <Link to="/courses/custom/mine">나만의 코스</Link>
+        <NavLink to="/courses" end>코스 찾기</NavLink>
+        <NavLink to="/records">러닝 기록</NavLink>
+        <NavLink to="/courses/custom/mine">나만의 코스</NavLink>
       </nav>
       <div className="header-actions">
         {user ? (

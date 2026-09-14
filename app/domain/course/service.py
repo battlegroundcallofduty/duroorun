@@ -21,8 +21,11 @@ from app.domain.course.schemas import (
     DrnbCourseDetailResponse,
     DrnbCourseListResponse,
     DrnbCourseSummary,
+    LandingStatsResponse,
     find_sigungu,
 )
+from app.domain.record.models import Record
+from app.domain.review.models import Review
 from app.domain.review.service import get_average_difficulty, get_review_summary
 
 logger = logging.getLogger(__name__)
@@ -493,3 +496,24 @@ async def delete_course_image(
         await delete_file(image_url)
     except (ClientError, BotoCoreError):
         logger.exception("DB 삭제 후 R2 파일 삭제 실패: image_url=%s", image_url)
+
+
+async def get_landing_stats(session: AsyncSession) -> LandingStatsResponse:
+    """랜딩페이지 통계 요약(총 코스 수 / 누적 완주 기록 / 총 리뷰 수) 조회."""
+    total_courses = (
+        await session.execute(
+            select(func.count()).select_from(Course).where(Course.is_active.is_(True))
+        )
+    ).scalar_one()
+    total_completions = (
+        await session.execute(
+            select(func.count()).select_from(Record).where(Record.is_completed.is_(True))
+        )
+    ).scalar_one()
+    total_reviews = (await session.execute(select(func.count()).select_from(Review))).scalar_one()
+
+    return LandingStatsResponse(
+        total_courses=total_courses,
+        total_completions=total_completions,
+        total_reviews=total_reviews,
+    )

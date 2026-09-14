@@ -344,3 +344,11 @@ class CustomCourseDetailResponse(BaseModel):
     # 리뷰가 없거나(난이도 평균) 3개 미만(AI 요약)이면 None
     average_difficulty: Difficulty | None = None
     review_summary: ReviewSummaryResponse | None = None
+
+
+class LandingStatsResponse(BaseModel):
+    """랜딩페이지 통계 요약 (총 코스 수 / 누적 완주 기록 / 총 리뷰 수). 공개 정보라 인증 불필요."""
+
+    total_courses: int
+    total_completions: int
+    total_reviews: int
