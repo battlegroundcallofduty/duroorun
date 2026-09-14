@@ -137,9 +137,11 @@ alembic upgrade head  # 로컬 반영
 | end_lat | FLOAT nullable | 종료 지점 위도 |
 | end_lng | FLOAT nullable | 종료 지점 경도 |
 | is_active | BOOLEAN | 활성 여부. 기본값 `true` |
+| is_admin_managed | BOOLEAN | 관리자가 admin 페이지에서 코스를 **비활성화**한 상태면 `true`, 활성화 상태거나 아직 관리자가 안 건드렸으면 `false` |
 | created_at | TIMESTAMP | 등록일 |
 | updated_at | TIMESTAMP nullable | 수정일 |
 
+> **`is_admin_managed` (2026-09 추가, 2026-09-13 동작 수정)**: `PATCH /courses/admin/{course_id}`로 관리자가 **비활성화**하면 `true`로 잠기고, 두루누비 시드(`seed_courses._upsert_courses`)의 "API 응답에 다시 나타나면 자동 재활성화" 기본 동작을 건너뛰어 관리자의 `is_active=false` 결정을 유지 (코스명/거리 등 다른 필드는 잠금과 무관하게 계속 최신화). 관리자가 다시 **활성화**로 되돌리면 이 잠금도 같이 `false`로 풀림 — 안 풀면 이 코스가 나중에 API에서 일시적으로 빠졌다(`_deactivate_missing_courses`가 비활성화) 다시 나타나도 영원히 자동 재활성화가 안 되는 문제가 있었음. `_deactivate_missing_courses`(API 목록에서 아예 빠진 코스 비활성화) 자체는 이 락과 무관하게 항상 동작 — "API에 없어짐"은 새로 확인된 사실이라 관리자 판단보다 우선  
 > DRNB 코스의 GPX 좌표(시작/종료점), 거리, 상세 설명, 난이도/소요시간/지역/구간 전부 시드 스크립트 등록 시 DB에 저장. 요청 시점에 두루누비 API 실시간 호출 없음  
 > CUSTOM 코스의 경유지 좌표는 `course_waypoints` 테이블에 저장  
 > `start_lat/lng`, `end_lat/lng`는 DRNB도 저장 (지도 표시 최적화 + **완주 인증 검증 기준점**). **두루누비 API 응답에는 시작/종료 좌표 필드가 없으므로, 시드 스크립트가 `gpxpath`(GPX xml URL)를 다운로드·파싱하여 첫 포인트=시작점, 마지막 포인트=종료점을 추출해 저장.** CUSTOM 코스는 `course_waypoints` 첫/마지막 sequence 기준 자동 저장  
@@ -258,14 +260,18 @@ alembic upgrade head  # 로컬 반영
 | facility_address | VARCHAR nullable | 주소 |
 | latitude | FLOAT | 위도 |
 | longitude | FLOAT | 경도 |
-| kakao_place_id | VARCHAR nullable | 카카오맵 장소 ID (상세정보 연동용) |
+| kakao_place_id | VARCHAR nullable | 카카오맵 장소 ID (상세정보 연동용). 화장실/주차장/편의점(OTHERS) 전부 카카오 검색으로 채워져 항상 값이 있음 |
+| external_ref | VARCHAR nullable | 카카오 place_id가 없는 외부 소스(주차장 공공API의 관리번호 등) 재시드 시 upsert용 자연키 |
 | is_active | BOOLEAN | 활성 여부. 기본값 `true` |
+| is_admin_edited | BOOLEAN | 관리자가 직접 등록했거나 **비활성화**한 상태면 `true`, 활성 상태거나 아직 관리자가 안 건드렸으면 `false` |
 | created_at | TIMESTAMP | 등록일 |
 | updated_at | TIMESTAMP nullable | 수정일 |
 
-> 관리자가 직접 등록/관리  
+> 관리자가 직접 등록/관리하거나, 배치 시드(주차장)/카카오 검색(화장실)으로 자동 등록 - 어느 경로든 관리자가 수정/비활성화 가능  
 > `place_url`은 컬럼이 아니라 `kakao_place_id`로 항상 계산 가능한 값이라 `Facility.place_url` property로 조립해서 응답에만 노출 (DB에 저장 안 함)  
-> UNIQUE INDEX on (kakao_place_id, facility_type) — 같은 장소를 같은 시설 타입으로 중복 등록하는 것 방지 (NULL은 서로 다른 값 취급이라 kakao_place_id 없는 시설은 제약 대상 아님)
+> UNIQUE INDEX on (kakao_place_id, facility_type) — 같은 장소를 같은 시설 타입으로 중복 등록하는 것 방지 (NULL은 서로 다른 값 취급이라 kakao_place_id 없는 시설은 제약 대상 아님)  
+> UNIQUE INDEX on (external_ref) — 주차장 등 재시드 시 idempotent upsert 타겟용 (NULL은 서로 다른 값 취급)  
+> **`is_admin_edited` (2026-09 추가, 2026-09-14 동작 수정)**: `courses.is_admin_managed`와 동일한 패턴으로 바뀜 - `create_facility`(신규 등록)나 `update_facility`로 **비활성화**(`is_active=false`)하면 `true`로 잠기고, 화장실/주차장 자동 재시드가 upsert 시 `is_admin_edited = false`인 행만 갱신 대상으로 삼아(`WHERE` 조건) 관리자가 비활성화한 시설을 되살리지 않음. `update_facility`로 다시 **활성화**(`is_active=true`)하면 이 잠금도 같이 `false`로 풀려서 다음 재시드부터 다시 자동 관리 대상에 포함됨. **이름/주소/좌표만 고치는 단순 수정은 잠그지 않음** - 다음 자동 재검색이 최신 정보로 계속 갱신하게 둠(관리자가 지금 고친 값도 다음 재검색에서 다시 덮어써질 수 있다는 뜻 - 값 자체를 영구히 고정하는 수단은 따로 없음, `is_active` 잠금은 "이 시설 자체를 자동 관리 대상에서 뺄지"만 결정). 마이그레이션 시점에 기존 비활성 시설은 전부 `true`로 백필됨(당시엔 자동 비활성화 경로가 없어 전부 관리자가 비활성화한 것으로 간주)
 
 ---
 
@@ -274,11 +280,15 @@ alembic upgrade head  # 로컬 반영
 |------|------|------|
 | course_id | FK → courses | 코스 |
 | facility_id | FK → facilities | 편의시설 |
+| is_excluded | BOOLEAN | `false`(기본): 반경 밖이어도 강제 포함. `true`: 반경 안이어도 강제 제외 |
 | created_at | TIMESTAMP | 매핑 연결일 (매핑 추적/디버깅용) |
 
-> PK: (course_id, facility_id) 복합키  
+> PK: (course_id, facility_id) 복합키 — 같은 코스-시설 조합은 포함/제외 중 하나만 가질 수 있음  
 > 코스 ↔ 편의시설 N:M 중간 테이블  
-> `created_at`은 관리자가 매핑을 언제 연결했는지 추적하기 위함 (디버깅 목적)
+> `created_at`은 관리자가 매핑을 언제 연결했는지 추적하기 위함 (디버깅 목적)  
+> **2026-09 변경**: 코스 상세 조회 시 편의시설 노출은 이제 이 테이블이 아니라 좌표 반경 기반 자동 매칭이 기본 (facilities 테이블, `FACILITY_RADIUS_M` 참고). 이 테이블은 **반경 기반 자동 매칭의 예외(반경 밖 강제 포함/반경 안 강제 제외)를 관리자가 수동으로 지정하는 용도로만** 쓰임 - 반경 안이면 이 테이블에 없어도 자동으로 노출됨  
+> **주의(2026-09-13)**: `sync_nearby_facilities`(화장실/주차장/편의점 카카오 검색)는 시설 데이터만 `facilities`에 저장하고 이 테이블에는 연결을 안 만듦 - 카카오 검색 반경이 `FACILITY_RADIUS_M`과 같아서 발견 시점엔 항상 반경 안이라 자동 매칭으로 충분하고, 명시적 연결을 만들면 코스가 나중에 다른 위치로 이동했을 때 그 연결이 "반경 밖 강제 포함" 예외로 남아 더 이상 안 맞는 시설이 계속 노출되는 문제가 있었음  
+> **`is_excluded`**: `PUT/DELETE /facilities/{facility_id}/courses/{course_id}` (관리자 전용)로 설정/해제. `get_facilities`는 `(is_excluded=false로 연결된 시설 ∪ 반경 안 시설) - is_excluded=true로 연결된 시설`을 반환
 
 ---
 
@@ -308,7 +318,7 @@ reviews        ──< review_images
 | ~~두루누비 코스 이미지~~ |`courseList` 응답 필드 실측 확인 결과 이미지 필드 없음. DRNB 코스 이미지는 API 미제공 — 일단 `course_images`는 CUSTOM 코스 전용 유지 |
 | GPX URL 접근 방식 | 시드 스크립트 작성 시 `gpxpath` URL에 직접 GET 가능한지 / 별도 인증 헤더 필요한지 확인 필요 |
 | 인덱스 추가 | 각 도메인 작업 시 조회 패턴에 맞춰 인덱스 추가 검토 (예: `records.user_id`, `records.course_id`, `records.is_completed`, `courses.course_type/sigun/difficulty`) |
-| `facilities.facility_type` 데이터 소스 | `RESTROOM`/`PARKING`은 공공 API로 채울 예정. `LOCKER`/`OTHERS`는 대응하는 공공 API가 없어 소스 미정 |
+| ~~`facilities.facility_type` 데이터 소스~~ | (해결, 2026-09-14 갱신) `RESTROOM`/`PARKING`/`OTHERS`(편의점) 전부 카카오 로컬 API 키워드 검색(`sync_nearby_facilities`). 원래 `PARKING`은 한국교통안전공단 공공API였으나 서버가 무작위로 응답을 못 주는 문제(~20% 확률)로 카카오 방식으로 전환 - 공공API 코드는 지우지 않고 남겨뒀지만 운영 스케줄러에는 등록 안 함, 필요할 때 수동 실행만 가능. `LOCKER`는 대응 API 없어 관리자 수동 등록만. 상세는 FEATURES.md 섹션 6 참고 |
 | AI 날씨·안전 브리핑 캐시 저장 위치 | Redis(기존 세션/OAuth용 인스턴스 재사용) vs 별도 테이블 — 캐시 키(지역 단위)/TTL(3시간) 설계와 함께 구현 시 결정 필요 |
 
 ---
