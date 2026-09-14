@@ -9,7 +9,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 from shapely.geometry import Point, shape
 from shapely.geometry.base import BaseGeometry
 
-from app.domain.course.models import Difficulty
+from app.domain.course.models import CourseType, Difficulty
 from app.domain.review.schemas import ReviewSummaryResponse
 
 
@@ -202,6 +202,36 @@ class DrnbCourseListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class AdminCourseResponse(BaseModel):
+    """관리자 - 코스 조회 시 응답 (is_active 무관 전체 노출, 조회+활성화토글 전용)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    course_id: int
+    course_type: CourseType
+    course_name: str
+    sigun: str | None
+    is_active: bool
+    # 관리자 잠금 true + 비활성화 상태일때, 두루누비 시드 자동 재활성화 X.
+    is_admin_managed: bool
+    created_at: datetime
+
+
+class AdminCourseListResponse(BaseModel):
+    """관리자 - 코스 목록 조회 응답 - offset 페이지네이션"""
+
+    items: list[AdminCourseResponse]
+    total: int
+    page: int
+    size: int
+
+
+class AdminCourseUpdateRequest(BaseModel):
+    """관리자 - 코스 활성화/비활성화 요청 (다른 필드 수정은 지원 X)."""
+
+    is_active: bool
 
 
 class DrnbCourseDetailResponse(BaseModel):
