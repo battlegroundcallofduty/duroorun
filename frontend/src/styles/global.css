@@ -200,6 +200,23 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .admin-search-results li { display:flex; align-items:center; gap:14px; padding:14px 20px; border:1px solid #e1e7e2; border-radius:10px; font-size:14px; }
 .admin-search-results a { color:var(--ink); font-weight:600; text-decoration:underline; }
 .admin-search-results span { color:#82928e; font-size:13px; }
+.admin-search-form select { padding:10px 14px; border:1px solid #dadce0; border-radius:8px; font-size:14px; }
+
+.admin-badge-active { display:inline-block; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:600; background:#e5f3ea; color:#1a7f4b; }
+.admin-badge-inactive { display:inline-block; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:600; background:#fbe8e6; color:#b3261e; }
+.admin-facility-form { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.admin-facility-form input, .admin-facility-form select { padding:10px 14px; border:1px solid #dadce0; border-radius:8px; font-size:14px; }
+.admin-facility-form input[type="text"] { flex:1; min-width:120px; }
+.admin-facility-editing { flex-direction:column; align-items:stretch; }
+.admin-facility-actions { display:flex; gap:8px; }
+/* 등록/수정 폼 안 좌표 선택용 지도는 폼 필드들과 나란히 두지 않고 한 줄 전체를 차지 */
+.admin-facility-form .kakao-map-wrapper { flex:1 1 100%; margin:4px 0 0; }
+
+.admin-pagination { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:28px; flex-wrap:wrap; }
+.admin-pagination button { border:1px solid #dadce0; background:#fff; color:var(--ink); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; min-width:36px; }
+.admin-pagination button.active { background:var(--ink); color:#fff; border-color:var(--ink); }
+.admin-pagination button:disabled { opacity:.5; cursor:not-allowed; }
+.admin-pagination-ellipsis { padding:0 4px; color:#82928e; }
 
 /* 공용 모달 오버레이 (프로필 사진 원본 보기, 내 리뷰 관리 등) */
 .modal-overlay { position:fixed; inset:0; background:rgba(16,42,43,.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:24px; }
@@ -371,6 +388,7 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 .kakao-map-hint { position:absolute; left:12px; bottom:12px; background:rgba(16,42,43,.85); color:#fff; font-size:12px; padding:8px 12px; border-radius:6px; pointer-events:none; }
 .kakao-map-waypoint-badge { width:22px; height:22px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.25); }
 .kakao-map-label { background:#fff; border:1px solid #e1e7e2; border-radius:6px; padding:3px 8px; font-size:11px; color:var(--ink); white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.12); }
+.kakao-map-hover-label { background:rgba(16,42,43,.9); color:#fff; border-radius:6px; padding:4px 9px; font-size:11px; white-space:nowrap; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.2); }
 
 .course-card-wrapper { position:relative; }
 .course-card-edit { position:absolute; left:13px; top:13px; z-index:3; background:rgba(255,255,255,.9); padding:5px 10px; border-radius:12px; font-size:11px; color:var(--blue); font-weight:600; }
@@ -381,9 +399,13 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 .course-form label:first-of-type { margin-top:0; }
 .course-form input, .course-form select, .course-form textarea { width:100%; padding:12px 14px; border:1px solid #dadce0; border-radius:8px; font-size:14px; font-family:inherit; }
 .course-form textarea { resize:vertical; }
-#course-photos-section > label { margin-top:28px; }
+.course-photos-section { margin-top:28px; padding:20px; background:var(--cream); border-radius:10px; }
+#course-photos-section > label { margin-top:0; }
 #course-photos-section .course-detail-images { margin-top:15px; }
 .kakao-map-hint-static { margin:0 0 8px; font-size:12px; color:#8a7a3d; }
+.facility-legend { display:flex; flex-wrap:wrap; gap:10px 16px; margin:0 0 16px; font-size:12px; color:#5c706c; }
+.facility-legend-item { display:inline-flex; align-items:center; gap:5px; }
+.facility-legend-item i { display:inline-block; width:10px; height:10px; border-radius:50%; }
 .waypoint-list { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
 .waypoint-list li { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border:1px solid #e1e7e2; border-radius:8px; font-size:13px; color:#5c706c; }
 .waypoint-list li button { border:0; background:transparent; color:var(--red); font-size:12px; cursor:pointer; }
@@ -395,3 +417,4 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 .course-form-actions .primary-button { border:0; border-radius:8px; cursor:pointer; padding:9px 18px; font-size:13px; box-shadow:none; }
 .course-form-actions .primary-button:disabled { opacity:.6; cursor:not-allowed; }
 .course-form-actions .danger-button { background:var(--red); }
+.course-form-actions .secondary-button { border:1px solid #dadce0; background:#fff; color:var(--ink); border-radius:8px; padding:9px 18px; font-size:13px; text-decoration:none; }

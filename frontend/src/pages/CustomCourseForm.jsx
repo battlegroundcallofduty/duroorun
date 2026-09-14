@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
@@ -228,12 +228,14 @@ const CustomCourseForm = () => {
   }, [isEditMode, loading]);
 
   const handleFieldChange = (field) => (event) => {
+    setNotice(''); // 저장 후 더 고치면 "저장됐어요" 지움
     setForm({ ...form, [field]: event.target.value });
   };
 
   // waypoints를 바꾸는 세 핸들러(클릭 추가/개별 삭제/전체 삭제)가 공유하는 로직
   // - updater는 setWaypoints처럼 배열 또는 (prev) => next 함수 둘 다 받음.
   const applyWaypoints = useCallback((updater) => {
+    setNotice(''); // 위 handleFieldChange와 동일한 이유
     setWaypointsDirty(true);
     setWaypoints((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -356,6 +358,7 @@ const CustomCourseForm = () => {
       }
       const data = await res.json();
       setImages(data.images ?? []);
+      setNotice(''); // 사진도 저장 후 화면 상태를 바꾸는 수정이므로 동일하게 지움
     } catch (err) {
       console.error('코스 이미지 업로드 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -376,6 +379,7 @@ const CustomCourseForm = () => {
         return;
       }
       setImages((prev) => prev.filter((img) => img.image_id !== imageId));
+      setNotice('');
     } catch (err) {
       console.error('코스 이미지 삭제 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -534,7 +538,7 @@ const CustomCourseForm = () => {
             />
 
             {isEditMode && (
-              <div id="course-photos-section">
+              <div id="course-photos-section" className="course-photos-section">
                 <label>사진 (최대 {COURSE_IMAGE_MAX_COUNT}장)</label>
                 <div className="course-detail-images">
                   {images.map((image) => (
@@ -572,6 +576,11 @@ const CustomCourseForm = () => {
               <button type="submit" className="primary-button" disabled={saving}>
                 {saving ? '저장 중...' : '저장하기'}
               </button>
+              {isEditMode && (
+                <Link to={`/courses/custom/${courseId}`} className="secondary-button">
+                  코스 상세 확인
+                </Link>
+              )}
               {isEditMode && (
                 <button
                   type="button"
