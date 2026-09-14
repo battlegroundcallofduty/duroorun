@@ -73,6 +73,10 @@ def start_scheduler() -> None:
     ㅡ replace_existing=True: 이미 같은 id로 등록된 job이 있어도 덮어씀
     ㅡ misfire_grace_time/coalesce: 서버 재시작 등으로 실행 시각을 놓쳐도
       1시간 이내면 뒤늦게라도 실행하되, 밀린 실행이 쌓여도 한 번만 실행.
+    ㅡ 주차장 공공API 시드파일은 이 스케줄러에 등록 X
+      (API 서버가 무작위로 응답 못 주는 문제로 신뢰가 떨어짐)
+      주차장의 실제 데이터 소스는 카카오 검색 방식 사용중.
+      필요하면 `python -m app.scripts.seed_facilities_parking` 수동 실행 가능.
     """
     job_kwargs = {"next_run_time": datetime.now(KST)} if settings.SEED_ON_STARTUP else {}
     _scheduler.add_job(
