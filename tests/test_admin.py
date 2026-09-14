@@ -369,7 +369,10 @@ async def test_popular_courses_tiebreak_by_review_count(db_session, ctx):
         )
     await db_session.commit()
 
-    results = await admin_service.get_popular_courses(db_session, CourseType.CUSTOM, 50)
+    # 관리자 대시보드 경로는 항상 include_inactive=True로 호출되므로 동일하게 맞춰서 검증
+    results = await admin_service.get_popular_courses(
+        db_session, CourseType.CUSTOM, 50, include_inactive=True
+    )
     result_course_ids = [item.course_id for item in results]
 
     assert result_course_ids.index(course_more_reviews.course_id) < result_course_ids.index(
