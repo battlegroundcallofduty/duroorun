@@ -9,7 +9,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 from shapely.geometry import Point, shape
 from shapely.geometry.base import BaseGeometry
 
-from app.domain.course.models import Difficulty
+from app.domain.course.models import CourseType, Difficulty
 from app.domain.review.schemas import ReviewSummaryResponse
 
 
@@ -352,3 +352,16 @@ class LandingStatsResponse(BaseModel):
     total_courses: int
     total_completions: int
     total_reviews: int
+
+
+class CoursePopularityItem(BaseModel):
+    """인기 코스 랭킹 항목 (완주 횟수 기준).
+
+    course_type은 "전체" 랭킹(DRNB+커스텀 혼합)에서 프론트가 코스 상세 경로
+    (/courses/{course_type}/{course_id})를 조립할 때 필요해서 포함한다.
+    """
+
+    course_id: int
+    course_name: str
+    course_type: CourseType
+    completion_count: int

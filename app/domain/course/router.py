@@ -7,14 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rate_limit import rate_limit_per_request
 from app.core.security import get_current_user
 from app.database import get_db
-from app.domain.admin.schemas import CoursePopularityItem
-from app.domain.admin.service import get_popular_courses
 from app.domain.course import attraction_service, weather_service
 from app.domain.course import service as course_service
 from app.domain.course.models import CourseType, Difficulty
 from app.domain.course.schemas import (
     GANGWON_BOUNDARY_PATH,
     CourseCreateRequest,
+    CoursePopularityItem,
     CourseUpdateRequest,
     CustomCourseDetailResponse,
     CustomCourseListResponse,
@@ -69,8 +68,8 @@ async def get_popular(
 ):
     """완주 횟수 기준 인기 코스 목록 조회 (랜딩페이지 "인기 코스" 섹션용).
     ㅡ course_type 생략 시 DRNB+CUSTOM 통합 랭킹. 공개 정보라 인증 불필요.
-    ㅡ 관리자 대시보드 통계(get_popular_courses)와 동일 로직 재사용."""
-    return await get_popular_courses(session, course_type, limit)
+    ㅡ 관리자 대시보드 통계(get_course_stats)와 동일 로직 재사용."""
+    return await course_service.get_popular_courses(session, course_type, limit)
 
 
 @router.get("/{course_id}/weather-briefing", response_model=WeatherBriefingResponse)

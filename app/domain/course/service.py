@@ -13,6 +13,7 @@ from app.config import settings
 from app.domain.course.models import Course, CourseImage, CourseType, CourseWaypoint, Difficulty
 from app.domain.course.schemas import (
     CourseCreateRequest,
+    CoursePopularityItem,
     CourseUpdateRequest,
     CourseWaypointCreate,
     CustomCourseDetailResponse,
@@ -510,10 +511,69 @@ async def get_landing_stats(session: AsyncSession) -> LandingStatsResponse:
             select(func.count()).select_from(Record).where(Record.is_completed.is_(True))
         )
     ).scalar_one()
-    total_reviews = (await session.execute(select(func.count()).select_from(Review))).scalar_one()
+    # 탈퇴 유저 리뷰(user_id NULL)는 get_reviews()에서 화면 노출 제외되므로, 통계도
+    # 같은 기준으로 맞춘다 - 안 그러면 "누적 리뷰 수"가 실제로 볼 수 있는 리뷰 수보다 많아짐
+    total_reviews = (
+        await session.execute(
+            select(func.count()).select_from(Review).where(Review.user_id.is_not(None))
+        )
+    ).scalar_one()
 
     return LandingStatsResponse(
         total_courses=total_courses,
         total_completions=total_completions,
         total_reviews=total_reviews,
     )
+
+
+async def get_popular_courses(
+    session: AsyncSession, course_type: CourseType | None, limit: int
+) -> list[CoursePopularityItem]:
+    """완주 횟수 기준 인기 코스 랭킹 (course_type=None이면 DRNB+CUSTOM 통합).
+
+    비활성화(is_active=False)된 코스는 상세 조회 시 404가 나므로 랭킹에서도 제외한다
+    - 그래야 랭킹에는 뜨는데 클릭하면 404가 나는 깨진 경험을 막을 수 있다.
+    완주 횟수가 같으면 리뷰 개수가 많은 순으로 2차 정렬해 순서를 안정적으로 고정한다.
+    Review는 Record와 별도로 Course에 N:1 관계라, 그냥 join하면 조합이 곱해져
+    완주 횟수 집계가 틀어지므로 상관 서브쿼리로 따로 계산한다.
+    완주 횟수·리뷰 개수까지 전부 같으면 course_id로 최종 고정한다.
+    """
+    review_count_subquery = (
+        select(func.count(Review.review_id))
+        .where(Review.course_id == Course.course_id)
+        .correlate(Course)
+        .scalar_subquery()
+    )
+
+    query = (
+        select(
+            Course.course_id,
+            Course.course_name,
+            Course.course_type,
+            func.count(Record.record_id).label("completion_count"),
+        )
+        .join(Record, Record.course_id == Course.course_id)
+        .where(Record.is_completed.is_(True), Course.is_active.is_(True))
+    )
+    if course_type is not None:
+        query = query.where(Course.course_type == course_type)
+    query = (
+        query.group_by(Course.course_id, Course.course_name, Course.course_type)
+        .order_by(
+            func.count(Record.record_id).desc(),
+            review_count_subquery.desc(),
+            Course.course_id.asc(),
+        )
+        .limit(limit)
+    )
+
+    rows = (await session.execute(query)).all()
+    return [
+        CoursePopularityItem(
+            course_id=row.course_id,
+            course_name=row.course_name,
+            course_type=row.course_type,
+            completion_count=row.completion_count,
+        )
+        for row in rows
+    ]

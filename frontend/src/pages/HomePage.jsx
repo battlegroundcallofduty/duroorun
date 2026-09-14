@@ -67,7 +67,12 @@ export default function Home() {
   const [attractions, setAttractions] = useState([]);
   const attractionScrollRef = useRef(null);
   const scrollAttractions = (direction) => {
-    attractionScrollRef.current?.scrollBy({ left: direction * 214, behavior: 'smooth' });
+    const row = attractionScrollRef.current;
+    if (!row) return;
+    // 카드 실제 너비 + gap(global.css .attraction-scroll-row의 gap:14px)을 동적으로 계산 -
+    // CSS에서 카드 크기가 바뀌어도 스크롤 버튼이 카드 경계에 맞게 따라감
+    const cardWidth = row.firstElementChild?.offsetWidth ?? 200;
+    row.scrollBy({ left: direction * (cardWidth + 14), behavior: 'smooth' });
   };
 
   useEffect(() => {

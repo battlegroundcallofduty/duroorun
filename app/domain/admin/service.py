@@ -16,7 +16,6 @@ from app.core.security import get_active_user
 from app.domain.admin.schemas import (
     BannedAccountListResponse,
     BannedAccountResponse,
-    CoursePopularityItem,
     CourseStatsResponse,
     DashboardStatsResponse,
     MonthlyYearlyCountResponse,
@@ -26,6 +25,7 @@ from app.domain.admin.schemas import (
     UserStatsResponse,
 )
 from app.domain.course.models import Course, CourseType
+from app.domain.course.service import get_popular_courses
 from app.domain.facility.models import Facility, FacilityType
 from app.domain.record.models import Record
 from app.domain.review.models import Review
@@ -262,57 +262,6 @@ async def get_record_stats(db: AsyncSession) -> RecordStatsResponse:
         total_completions=total_completions,
         completions=completions,
     )
-
-
-async def get_popular_courses(
-    db: AsyncSession, course_type: CourseType | None, limit: int
-) -> list[CoursePopularityItem]:
-    """완주 횟수 기준 인기 코스 랭킹 (course_type=None이면 전체).
-
-    완주 횟수가 같으면 리뷰 개수가 많은 순으로 2차 정렬해 순서를 안정적으로 고정한다.
-    Review는 Record와 별도로 Course에 N:1 관계라, 그냥 join하면 조합이 곱해져
-    완주 횟수 집계가 틀어지므로 상관 서브쿼리로 따로 계산한다.
-    완주 횟수·리뷰 개수까지 전부 같으면 course_id로 최종 고정한다.
-    """
-    review_count_subquery = (
-        select(func.count(Review.review_id))
-        .where(Review.course_id == Course.course_id)
-        .correlate(Course)
-        .scalar_subquery()
-    )
-
-    query = (
-        select(
-            Course.course_id,
-            Course.course_name,
-            Course.course_type,
-            func.count(Record.record_id).label("completion_count"),
-        )
-        .join(Record, Record.course_id == Course.course_id)
-        .where(Record.is_completed.is_(True))
-    )
-    if course_type is not None:
-        query = query.where(Course.course_type == course_type)
-    query = (
-        query.group_by(Course.course_id, Course.course_name, Course.course_type)
-        .order_by(
-            func.count(Record.record_id).desc(),
-            review_count_subquery.desc(),
-            Course.course_id.asc(),
-        )
-        .limit(limit)
-    )
-
-    rows = (await db.execute(query)).all()
-    return [
-        CoursePopularityItem(
-            course_id=row.course_id,
-            course_name=row.course_name,
-            course_type=row.course_type,
-            completion_count=row.completion_count,
-        )
-        for row in rows
-    ]
 
 
 async def get_course_stats(db: AsyncSession) -> CourseStatsResponse:
