@@ -371,23 +371,37 @@ const RecordHistory = () => {
                     <span className="record-badge">진행 중</span>
                   )}
                 </div>
-                {/* 진행 중(ended_at 없음)인 기록은 다른 탭/기기의 실제 러닝 세션일 수 있어
-                    삭제 버튼을 노출하지 않는다 - 지우면 그 세션의 pause/resume/end 요청이
-                    404를 맞고 GPS/시간 데이터가 통째로 날아간다(리뷰 지적) */}
-                {record.ended_at && (
-                  <button
-                    type="button"
-                    className="record-history-delete"
-                    onClick={() => handleDelete(record.record_id)}
-                    disabled={deletingIds.has(record.record_id) || staleRecordIds.has(record.record_id)}
-                  >
-                    {deletingIds.has(record.record_id)
-                      ? '삭제 중...'
-                      : staleRecordIds.has(record.record_id)
-                        ? '새로고침 필요'
-                        : '삭제'}
-                  </button>
-                )}
+                <div className="record-history-actions">
+                  {/* 완주한 기록만 리뷰 대상 코스로 바로 이동할 수 있게 한다 - 이미 리뷰를
+                      쓴 코스여도 똑같이 노출한다(팀 결정): 코스 상세 페이지 자체가
+                      hasMyReview를 확인해서 작성/기존 리뷰 여부를 알아서 보여주므로,
+                      여기서 리뷰 존재 여부를 따로 조회해 구분할 필요가 없다 */}
+                  {record.is_completed && (
+                    <Link
+                      to={`/courses/${record.course_type.toLowerCase()}/${record.course_id}`}
+                      className="text-button record-history-review-link"
+                    >
+                      리뷰 작성하러 가기
+                    </Link>
+                  )}
+                  {/* 진행 중(ended_at 없음)인 기록은 다른 탭/기기의 실제 러닝 세션일 수 있어
+                      삭제 버튼을 노출하지 않는다 - 지우면 그 세션의 pause/resume/end 요청이
+                      404를 맞고 GPS/시간 데이터가 통째로 날아간다(리뷰 지적) */}
+                  {record.ended_at && (
+                    <button
+                      type="button"
+                      className="record-history-delete"
+                      onClick={() => handleDelete(record.record_id)}
+                      disabled={deletingIds.has(record.record_id) || staleRecordIds.has(record.record_id)}
+                    >
+                      {deletingIds.has(record.record_id)
+                        ? '삭제 중...'
+                        : staleRecordIds.has(record.record_id)
+                          ? '새로고침 필요'
+                          : '삭제'}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
