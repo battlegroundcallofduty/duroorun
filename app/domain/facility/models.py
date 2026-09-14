@@ -40,8 +40,10 @@ class Facility(Base):
     facility_type: Mapped[FacilityType] = mapped_column(SAEnum(FacilityType), nullable=False)
     facility_name: Mapped[str] = mapped_column(String, nullable=False)
     facility_address: Mapped[str | None] = mapped_column(String, nullable=True)
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    # 반경 매칭이 매 코스 상세 조회마다 bounding box로 걸러 조회함
+    # ㅡ index 없으면 그 WHERE절이 매번 전체 테이블을 훑게 돼서 추가
+    latitude: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False, index=True)
     kakao_place_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # 카카오 place_id가 없는 외부 소스(예: 주차장 공공API의 관리번호)를 재시드 시
     # 반복해도 안전하게 upsert하기 위한 자연키. 소스별로 형식이 다를 수 있어 String

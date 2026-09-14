@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     TOUR_API_KEY: str = ""
     TOUR_BASE_URL: str = "https://apis.data.go.kr/B551011/KorService2"
 
+    # 한국교통안전공단 주차정보 (편의시설 주차장) - DURUNUBI_API_KEY와 동일 값 사용
+    # 시드파일 만들긴 했는데, 스케줄러 돌아가진 않음.
+    PARKING_API_KEY: str = ""
+    PARKING_BASE_URL: str = "https://apis.data.go.kr/B553881/Parking"
+
+    # 카카오 로컬 API (편의시설 키워드 검색). KAKAO_MAP_API_KEY와는 별개,
+    # 서버에서 REST로 호출하기 위한 키
+    KAKAO_MAP_REST_API_KEY: str = ""
+
     # 코스 날씨 브리핑 중 "단기예보 요약 문단 + 기온/상태 통계" 캐시 TTL(초)
     # ㅡ 단기예보 갱신 주기(3시간)와 동일
     WEATHER_BRIEFING_CACHE_TTL_SECONDS: int = 10800
@@ -94,6 +103,11 @@ class Settings(BaseSettings):
 
     # 완주 인증 반경 (미터)
     COMPLETION_RADIUS_M: int = 300
+
+    # 편의시설 반경 (미터) - 코스 상세 조회 시 이 반경 내 편의시설을 자동 표시.
+    # 카카오 키워드 검색 호출 반경으로도 동일하게 사용.
+    # ㅡ 편의시설이 너무 많이 잡히는 것 같으면 이 반경 줄이는것 추천.
+    FACILITY_RADIUS_M: int = 1000
 
     # 이미지 업로드 정책
     COURSE_IMAGE_MAX_COUNT: int = 3

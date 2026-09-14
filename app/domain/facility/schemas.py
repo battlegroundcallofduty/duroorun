@@ -36,6 +36,16 @@ class FacilityUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
+class FacilityCourseOverrideRequest(BaseModel):
+    """특정 코스에서 이 시설을 강제 포함/제외 - 반경 자동 매칭의 예외 처리용.
+
+    ㅡ is_excluded=False: 반경 밖이어도 이 코스에 강제로 노출
+    ㅡ is_excluded=True: 반경 안이어도 이 코스에서는 숨김
+    """
+
+    is_excluded: bool
+
+
 class FacilityResponse(BaseModel):
     """편의시설 조회 시 응답"""
 
@@ -50,6 +60,10 @@ class FacilityResponse(BaseModel):
     kakao_place_id: str | None
     place_url: str | None
     is_active: bool
+    # True면 관리자가 수동 등록 또는 비활성화한 상태
+    # 재시드가 이 시설을 되살리지 않음. 다시 활성화하면 풀림.
+    # (이름/주소/좌표 고치는 단순 수정은 잠그지 않음)
+    is_admin_edited: bool
     created_at: datetime
     updated_at: datetime | None
 
