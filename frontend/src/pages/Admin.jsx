@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../api';
+import CourseManagement from '../components/admin/CourseManagement';
+import FacilityManagement from '../components/admin/FacilityManagement';
 import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
 import { usePaginatedCourses } from '../hooks/usePaginatedCourses';
@@ -330,6 +332,9 @@ const Admin = () => {
             </div>
           )}
         </section>
+
+        {isAdmin && <CourseManagement />}
+        {isAdmin && <FacilityManagement />}
       </main>
     </>
   );
