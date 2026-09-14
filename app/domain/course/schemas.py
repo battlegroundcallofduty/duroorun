@@ -364,4 +364,7 @@ class CoursePopularityItem(BaseModel):
     course_id: int
     course_name: str
     course_type: CourseType
+    difficulty: Difficulty | None
+    distance: float | None
+    estimated_time: int | None
     completion_count: int

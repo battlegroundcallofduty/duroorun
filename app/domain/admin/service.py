@@ -279,9 +279,10 @@ async def get_course_stats(db: AsyncSession) -> CourseStatsResponse:
     )
 
     return CourseStatsResponse(
-        popular_overall=await get_popular_courses(db, None, 5),
-        popular_drnb=await get_popular_courses(db, CourseType.DRNB, 3),
-        popular_custom=await get_popular_courses(db, CourseType.CUSTOM, 3),
+        # 관리자 대시보드는 기존 스펙(FEATURES.md)대로 비활성 코스도 통계에 포함
+        popular_overall=await get_popular_courses(db, None, 5, include_inactive=True),
+        popular_drnb=await get_popular_courses(db, CourseType.DRNB, 3, include_inactive=True),
+        popular_custom=await get_popular_courses(db, CourseType.CUSTOM, 3, include_inactive=True),
         total_custom_courses=total_custom_courses,
         custom_course_registrations=custom_course_registrations,
     )

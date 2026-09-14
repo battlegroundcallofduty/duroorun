@@ -81,6 +81,21 @@ async def test_get_popular_courses_excludes_inactive_course(db_session, ctx):
     assert inactive_course.course_id not in result_course_ids
 
 
+# 1-1. include_inactive=True(관리자 대시보드 경로)면 비활성 코스도 포함된다
+# (FEATURES.md: "커스텀 코스 삭제는... 관리자 대시보드 통계에는 계속 포함" 스펙 유지 확인)
+async def test_get_popular_courses_includes_inactive_when_requested(db_session, ctx):
+    inactive_course = await _make_course_with_completions(
+        db_session, ctx, count=5, is_active=False
+    )
+
+    results = await course_service.get_popular_courses(
+        db_session, CourseType.CUSTOM, 50, include_inactive=True
+    )
+    result_course_ids = [item.course_id for item in results]
+
+    assert inactive_course.course_id in result_course_ids
+
+
 # 2. course_type 필터가 정확히 적용된다
 async def test_get_popular_courses_filters_by_course_type(db_session, ctx):
     custom_course = await _make_course_with_completions(db_session, ctx, count=3)

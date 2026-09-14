@@ -3,28 +3,23 @@ import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
+import CourseCard from '../components/CourseCard';
 
-const CARD_COLORS = ['blue', 'green', 'red'];
 const COURSE_TYPE_LABEL = { DRNB: '공식', CUSTOM: '커스텀' };
 
-// 인기 코스 카드 그리드 - 전체/공식/커스텀 섹션에서 공통으로 재사용
+// 인기 코스 카드 그리드 - 전체/공식/커스텀 섹션에서 공통으로 재사용.
+// /courses 목록 페이지와 동일한 CourseCard를 그대로 써서 카드 모양을 통일하고,
+// 랭킹 숫자만 actions 슬롯으로 얹는다(CourseCard 자체는 안 건드림).
 const PopularCourseGrid = ({ courses }) => (
   <div className="course-grid">
     {courses.map((course, index) => (
-      <Link
-        className={`course-card ${CARD_COLORS[index % CARD_COLORS.length]}`}
+      <CourseCard
         key={course.course_id}
+        course={course}
         to={`/courses/${course.course_type.toLowerCase()}/${course.course_id}`}
-      >
-        <div className="course-art">
-          <span className="course-number">0{index + 1}</span>
-          <div className="mini-route" />
-          <span className="course-badge">{COURSE_TYPE_LABEL[course.course_type] ?? course.course_type}</span>
-        </div>
-        <div className="course-info">
-          <h3>{course.course_name}</h3>
-        </div>
-      </Link>
+        badgeText={COURSE_TYPE_LABEL[course.course_type] ?? course.course_type}
+        actions={<span className="landing-rank-badge">{String(index + 1).padStart(2, '0')}</span>}
+      />
     ))}
   </div>
 );
