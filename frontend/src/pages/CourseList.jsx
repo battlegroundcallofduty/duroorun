@@ -5,7 +5,7 @@ import CourseCard from '../components/CourseCard';
 import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { usePaginatedCourses } from '../hooks/usePaginatedCourses';
+import { useLoadMoreCourses } from '../hooks/useLoadMoreCourses';
 import { useSigunOptions } from '../hooks/useSigunOptions';
 import { formatCustomSigunBadge } from '../utils/format';
 
@@ -75,7 +75,7 @@ const CourseList = () => {
 
   // 탭 전환/필터 변경 시 1페이지부터 다시 조회(목록 교체), "더보기"는 다음 페이지를 이어 붙임
   // ㅡ 훅 내부에서 요청 세대를 관리해 늦게 도착한 응답(예: 더보기 도중 탭 전환)은 버림
-  const { courses, total, loading, loadingMore, error, loadMoreError, loadMore } = usePaginatedCourses(
+  const { courses, total, loading, loadingMore, error, loadMoreError, loadMore } = useLoadMoreCourses(
     path,
     buildQuery,
     [courseType, activeDebouncedFilters],

@@ -5,7 +5,7 @@ import { apiFetch } from '../api';
 import CourseCard from '../components/CourseCard';
 import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
-import { usePaginatedCourses } from '../hooks/usePaginatedCourses';
+import { useLoadMoreCourses } from '../hooks/useLoadMoreCourses';
 import { formatCustomSigunBadge } from '../utils/format';
 
 const PAGE_SIZE = 20;
@@ -27,7 +27,7 @@ const MyCourses = () => {
     `created_by=${user.user_id}&page=${targetPage}&size=${size}`;
 
   const { courses, total, loading, loadingMore, error, loadMoreError, loadMore, reload } =
-    usePaginatedCourses(path, buildQuery, [user?.user_id]);
+    useLoadMoreCourses(path, buildQuery, [user?.user_id]);
 
   // 목록 조회 실패 'error'와 분리된 'deleteError' state 새로 만듦.
   // ㅡ 코스 삭제 실패 시 기존 목록 전체가 숨겨지지 않도록: 독립된 state로 관리
