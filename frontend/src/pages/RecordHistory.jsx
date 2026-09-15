@@ -381,7 +381,7 @@ const RecordHistory = () => {
                       to={`/courses/${record.course_type.toLowerCase()}/${record.course_id}`}
                       className="text-button record-history-review-link"
                     >
-                      리뷰 작성하러 가기
+                      리뷰 보기·작성
                     </Link>
                   )}
                   {/* 진행 중(ended_at 없음)인 기록은 다른 탭/기기의 실제 러닝 세션일 수 있어
