@@ -142,7 +142,6 @@ async def create_facility(session: AsyncSession, body: FacilityCreateRequest) ->
         facility.latitude = body.latitude
         facility.longitude = body.longitude
         facility.is_admin_edited = True
-        facility.course_facilities.clear()
         await session.flush()
     else:
         facility = Facility(
@@ -527,16 +526,24 @@ async def update_facility(
     if body.course_ids is not None:
         course_ids = list(dict.fromkeys(body.course_ids))
         await _validate_course_ids(session, course_ids)
-        # 같은 (course_id, facility_id)는 포함/제외 동시에 있을 수 없어(PK),
-        # 새로 포함시키는 코스는 기존 제외 override가 있었다면 같이 정리
-        facility.course_facilities = [
-            cf
-            for cf in facility.course_facilities
-            if cf.is_excluded and cf.course_id not in course_ids
-        ]
+        new_ids = set(course_ids)
+        # 기존에 이미 포함(is_excluded=False)돼 있던 연결 중
+        # 새 목록에도 그대로 있는 것은 건드리지 않는다
+        existing_included_ids = {
+            cf.course_id for cf in facility.course_facilities if not cf.is_excluded
+        }
+        for cf in list(facility.course_facilities):
+            if not cf.is_excluded and cf.course_id not in new_ids:
+                # 더 이상 포함 목록에 없는 기존 연결 제거
+                facility.course_facilities.remove(cf)  # delete-orphan cascade가 DELETE 처리
+            elif cf.is_excluded and cf.course_id in new_ids:
+                # 같은 (course_id, facility_id)는 포함/제외를 동시에 가질 수 없어(PK),
+                # 새로 포함시키는 코스에 기존 제외 override가 있었다면 같이 정리
+                facility.course_facilities.remove(cf)
         await session.flush()
         facility.course_facilities.extend(
-            CourseFacility(course_id=course_id, is_excluded=False) for course_id in course_ids
+            CourseFacility(course_id=course_id, is_excluded=False)
+            for course_id in new_ids - existing_included_ids
         )
 
     try:

@@ -306,6 +306,9 @@ const CustomCourseForm = () => {
   const handleAddressSearch = async () => {
     const query = addressQuery.trim();
     if (!query) return;
+    // 검색창엔 disabled가 없어 응답이 오기 전에 또 검색을 보낼 수 있다 - 매 호출 시작 시점에
+    // 고유 번호를 매겨두고, 콜백에서 "지금도 이게 최신 검색인지" 확인.
+    const mySearchSeq = ++searchSeqRef.current;
     setAddressSearchError('');
     setAddressSearching(true);
     try {
@@ -319,7 +322,9 @@ const CustomCourseForm = () => {
       places.keywordSearch(
         query,
         (results, resultStatus) => {
-          if (!isMountedRef.current) return; // 콜백 도착 전에 페이지를 벗어난 경우
+          // 페이지를 벗어났거나(isMountedRef) 그 사이 더 최신 검색이 시작됐으면(searchSeqRef)
+          // 이 응답은 무시.
+          if (!isMountedRef.current || searchSeqRef.current !== mySearchSeq) return;
           setAddressSearching(false);
           if (resultStatus === kakao.maps.services.Status.ERROR) {
             // ZERO_RESULT(그냥 결과 없음)와 구분 - 이건 서비스/네트워크 쪽 문제라
@@ -338,21 +343,20 @@ const CustomCourseForm = () => {
             setAddressSearchError('강원도 안에서 검색 결과가 없어요. 다른 표현으로 검색해보세요.');
             return;
           }
-          searchSeqRef.current += 1;
           setPanTarget({
             lat: Number(match.y),
             lng: Number(match.x),
             level: _SEARCH_ZOOM_LEVEL,
             // 좌표가 이전 검색과 완전히 같아도(같은 곳을 재검색) KakaoMap의 panTo
             // effect가 반드시 재실행되도록 매번 달라지는 값을 같이 실어보냄
-            seq: searchSeqRef.current,
+            seq: mySearchSeq,
           });
         },
         { bounds },
       );
     } catch (err) {
       console.error('장소 검색 실패:', err);
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || searchSeqRef.current !== mySearchSeq) return;
       setAddressSearching(false);
       setAddressSearchError('지도를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     }

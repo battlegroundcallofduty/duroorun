@@ -11,11 +11,11 @@ class FacilityCreateRequest(BaseModel):
     """편의시설 등록 - 관리자 전용"""
 
     facility_type: FacilityType
-    facility_name: str = Field(min_length=1)
-    facility_address: str | None = None
+    facility_name: str = Field(min_length=1, max_length=100)
+    facility_address: str | None = Field(default=None, max_length=300)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
-    kakao_place_id: str | None = None
+    kakao_place_id: str | None = Field(default=None, max_length=30)
     # 연결할 코스 (선택사항, 복수 선택 가능)
     course_ids: list[int] = Field(default_factory=list)
     # 코스 id 안보내면, list() 실행 → 매번 새로운 [] 생성
@@ -25,11 +25,11 @@ class FacilityUpdateRequest(BaseModel):
     """편의시설 수정 - 관리자 전용. 부분 수정이므로 전달된 필드만 반영"""
 
     facility_type: FacilityType | None = None
-    facility_name: str | None = Field(default=None, min_length=1)
-    facility_address: str | None = None
+    facility_name: str | None = Field(default=None, min_length=1, max_length=100)
+    facility_address: str | None = Field(default=None, max_length=300)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    kakao_place_id: str | None = None
+    kakao_place_id: str | None = Field(default=None, max_length=30)
     # None이면 코스 연결 변경 없음, 빈 리스트면 전체 연결 해제
     course_ids: list[int] | None = None
     # 삭제(is_active=false) 처리된 시설을 관리자가 되돌릴 때 사용. None이면 변경 없음
