@@ -461,6 +461,9 @@ async def upload_course_image(
     try:
         image_url = await upload_file("course-images", contents, ext, detected_content_type)
     except (ClientError, BotoCoreError) as err:
+        # R2 자격증명/버킷 설정 문제 등 원인 파악용 - HTTPException은 detail만 응답에
+        # 노출되고 서버 로그엔 안 남아서, 별도로 원본 예외를 남겨둠
+        logger.exception("코스 이미지 R2 업로드 실패: course_id=%s", course_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="이미지 업로드에 실패했습니다.",
