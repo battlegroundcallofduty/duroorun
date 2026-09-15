@@ -46,7 +46,7 @@
 - **세션 정책**: 유저당 Refresh Token 1개 (Redis `refresh:{user_id}`). 재발급 시 기존 토큰을 새 토큰으로 교체(로테이션)
 - **재발급 검증**: 클라이언트가 보낸 Refresh의 jti가 Redis 값과 일치할 때만 새 Access + 새 Refresh 발급 (GET-then-SET을 Lua로 원자적 처리). 불일치 시 401로 재발급 거부 — 단, Redis 키는 삭제하지 않음 (동시 재발급 요청 중 하나가 먼저 로테이션에 성공한 뒤, 뒤늦게 도착한 옛 토큰 요청이 방금 발급된 정상 세션까지 강제 로그아웃시키는 경쟁 조건을 막기 위함. 2026-08-12 `e40682a`에서 변경)
 - **로그인/재발급 응답**: Access Token은 응답 body로, Refresh Token은 httpOnly 쿠키(Set-Cookie)로 전달
-- **쿠키 환경 분기**: 로컬은 `secure=False`/`samesite=lax`, 프로덕션(HTTPS)은 `secure=True`/`samesite=none`. CORS는 `allow_credentials=True`, 프론트는 `credentials: 'include'` 필수
+- **쿠키 환경 분기**: `samesite=lax`는 로컬/프로덕션 공통(같은 도메인이라 충분), `secure`만 환경 분기(로컬 `False`, 프로덕션 `True`). CORS는 `allow_credentials=True`, 프론트는 `credentials: 'include'` 필수
 - **로그아웃**: Access를 `blacklist:{access_jti}`에 잔여 만료시간만큼 등록, Refresh 쿠키 삭제 + Redis `refresh:{user_id}` 삭제
 
 **탈퇴 처리 상세** (단일 트랜잭션으로 일괄 처리)

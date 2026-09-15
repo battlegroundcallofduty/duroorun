@@ -9,6 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: 필수 경계 geojson 파일이 git에 tracked 상태인지 확인
+        run: |
+          git ls-files --error-unmatch \
+            app/domain/course/gangwon_boundary/gangwon_boundary.geojson \
+            app/domain/course/gangwon_boundary/gangwon_sigungu_boundary.geojson
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

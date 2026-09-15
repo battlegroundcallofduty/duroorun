@@ -15,11 +15,8 @@ from app.domain.review.schemas import ReviewSummaryResponse
 
 # 아래 두 geojson은 이 모듈이 임포트되는 순간(앱 기동 시점) 즉시 읽어서 shapely
 # 도형으로 변환해둔다. 둘 중 하나라도 없으면 앱 전체 기동 X.
-# TODO(배포 담당자): CI/배포 파이프라인에 아래 두 파일이 git에 tracked 상태인지
-# 확인하는 스텝을 추가할 것 — 예: `git ls-files --error-unmatch <path>` 둘 다 통과해야
-# 빌드 계속 진행.
-#   - app/domain/course/gangwon_boundary/gangwon_boundary.geojson
-#   - app/domain/course/gangwon_boundary/gangwon_sigungu_boundary.geojson
+# CI(.github/workflows/deploy.yml의 lint 잡)에서 git ls-files --error-unmatch로
+# 두 파일이 tracked 상태인지 배포 전에 확인함.
 def _load_boundary_geojson(path: Path) -> dict:
     try:
         with path.open(encoding="utf-8") as f:
