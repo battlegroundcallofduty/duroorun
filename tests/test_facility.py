@@ -457,6 +457,125 @@ async def test_course_facility_override_excludes_facility_within_radius(db_sessi
         await _cleanup_facility(db_session, facility.facility_id)
 
 
+async def test_update_facility_course_ids_preserves_existing_link_created_at(db_session):
+    """course_ids를 다시 저장해도 이미 포함(is_excluded=False)돼 있던 연결은 건드리지 않아
+    created_at이 그대로다 - 전체 삭제 후 재생성하던 예전 방식은 매번 리셋됐음."""
+    course = await _make_nearby_course(db_session)
+    facility = await create_facility(
+        session=db_session,
+        body=FacilityCreateRequest(
+            facility_type=FacilityType.LOCKER,
+            facility_name=f"pytest cf 유지 {uuid.uuid4().hex[:8]}",
+            latitude=37.75,
+            longitude=128.9,
+            course_ids=[course.course_id],
+        ),
+    )
+    try:
+        before = await db_session.execute(
+            select(CourseFacility.created_at).where(
+                CourseFacility.facility_id == facility.facility_id,
+                CourseFacility.course_id == course.course_id,
+            )
+        )
+        created_at_before = before.scalar_one()
+
+        await update_facility(
+            session=db_session,
+            facility_id=facility.facility_id,
+            body=FacilityUpdateRequest(course_ids=[course.course_id]),
+        )
+
+        after = await db_session.execute(
+            select(CourseFacility.created_at).where(
+                CourseFacility.facility_id == facility.facility_id,
+                CourseFacility.course_id == course.course_id,
+            )
+        )
+        assert after.scalar_one() == created_at_before
+    finally:
+        await _cleanup_facility(db_session, facility.facility_id)
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
+async def test_update_facility_course_ids_removes_dropped_course(db_session):
+    """새 course_ids 목록에서 빠진 기존 연결은 삭제된다."""
+    course_a = await _make_nearby_course(db_session)
+    course_b = await _make_nearby_course(db_session)
+    facility = await create_facility(
+        session=db_session,
+        body=FacilityCreateRequest(
+            facility_type=FacilityType.LOCKER,
+            facility_name=f"pytest cf 제거 {uuid.uuid4().hex[:8]}",
+            latitude=37.75,
+            longitude=128.9,
+            course_ids=[course_a.course_id, course_b.course_id],
+        ),
+    )
+    try:
+        await update_facility(
+            session=db_session,
+            facility_id=facility.facility_id,
+            body=FacilityUpdateRequest(course_ids=[course_a.course_id]),
+        )
+
+        result = await db_session.execute(
+            select(CourseFacility.course_id).where(
+                CourseFacility.facility_id == facility.facility_id
+            )
+        )
+        assert set(result.scalars().all()) == {course_a.course_id}
+    finally:
+        await _cleanup_facility(db_session, facility.facility_id)
+        await db_session.execute(
+            delete(Course).where(Course.course_id.in_([course_a.course_id, course_b.course_id]))
+        )
+        await db_session.commit()
+
+
+async def test_update_facility_course_ids_clears_exclude_override_when_reincluded(db_session):
+    """제외(is_excluded=True) override가 걸려 있던 코스를 course_ids에 새로 넣으면
+    override가 정리되고 포함(is_excluded=False)으로 바뀐다 - 같은 (course_id, facility_id)는
+    포함/제외를 동시에 가질 수 없어(PK) 정리 안 하면 update가 IntegrityError로 실패."""
+    course = await _make_nearby_course(db_session)
+    facility = await create_facility(
+        session=db_session,
+        body=FacilityCreateRequest(
+            facility_type=FacilityType.RESTROOM,
+            facility_name=f"pytest cf override 정리 {uuid.uuid4().hex[:8]}",
+            latitude=37.75,
+            longitude=128.9,
+        ),
+    )
+    try:
+        await set_course_facility_override(
+            db_session,
+            facility_id=facility.facility_id,
+            course_id=course.course_id,
+            is_excluded=True,
+        )
+
+        await update_facility(
+            session=db_session,
+            facility_id=facility.facility_id,
+            body=FacilityUpdateRequest(course_ids=[course.course_id]),
+        )
+
+        result = await db_session.execute(
+            select(CourseFacility).where(
+                CourseFacility.facility_id == facility.facility_id,
+                CourseFacility.course_id == course.course_id,
+            )
+        )
+        cf = result.scalar_one()
+        assert cf.is_excluded is False
+    finally:
+        await _cleanup_facility(db_session, facility.facility_id)
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
 async def test_course_facility_override_includes_facility_outside_radius(db_session):
     """반경 밖 시설도 override로 강제 포함하면 코스 편의시설 목록에 나온다."""
     far_facility = await create_facility(
