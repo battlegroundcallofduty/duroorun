@@ -548,7 +548,11 @@ const MyPage = () => {
             {!reviewsLoading && !reviewsError && myReviews.length > 0 && (
               <ul className="review-list">
                 {myReviews.map((review) =>
-                  review.course_is_active ? (
+                  // 배포 스크립트가 프론트를 먼저 빌드/배포하고 백엔드를 나중에 올리는
+                  // 구조라, 그 짧은 사이엔 백엔드가 아직 이 필드를 안 내려줄 수 있다 -
+                  // 필드가 없으면(undefined) 무조건 비활성으로 오판하지 않게 true를
+                  // 기본값으로 둔다(리뷰 지적, RecordHistory.jsx와 동일)
+                  (review.course_is_active ?? true) ? (
                     <li key={review.review_id} className="review-item">
                       {/* 가독성 지적(리뷰) - 코스명/난이도/날짜를 한 줄로 합쳐서 메타정보를
                           한눈에 훑을 수 있게 하고, 리뷰 내용은 분리된 줄에 문단으로 둔다 */}

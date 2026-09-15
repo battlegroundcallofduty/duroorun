@@ -376,8 +376,12 @@ const RecordHistory = () => {
                       쓴 코스여도 똑같이 노출한다(팀 결정): 코스 상세 페이지 자체가
                       hasMyReview를 확인해서 작성/기존 리뷰 여부를 알아서 보여주므로,
                       여기서 리뷰 존재 여부를 따로 조회해 구분할 필요가 없다 */}
+                  {/* 배포 스크립트가 프론트를 먼저 빌드/배포하고 백엔드를 나중에 올리는
+                      구조라, 그 짧은 사이엔 백엔드가 아직 이 필드를 안 내려줄 수 있다 -
+                      필드가 없으면(undefined) 무조건 비활성으로 오판하지 않게 true를
+                      기본값으로 둔다(리뷰 지적) */}
                   {record.is_completed &&
-                    (record.course_is_active ? (
+                    ((record.course_is_active ?? true) ? (
                       <Link
                         to={`/courses/${record.course_type.toLowerCase()}/${record.course_id}`}
                         className="text-button record-history-review-link"
