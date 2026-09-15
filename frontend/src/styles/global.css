@@ -403,6 +403,11 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 #course-photos-section > label { margin-top:0; }
 #course-photos-section .course-detail-images { margin-top:15px; }
 .kakao-map-hint-static { margin:0 0 8px; font-size:12px; color:#8a7a3d; }
+.kakao-map-hint-static.error { color:var(--red); }
+.address-search-bar { display:flex; gap:8px; margin:0 0 10px; }
+.address-search-bar input { flex:1; padding:10px 14px; border:1px solid #dadce0; border-radius:8px; font-size:14px; }
+.address-search-bar button { border:1px solid #dadce0; background:#fff; color:var(--ink); border-radius:8px; padding:10px 16px; font-size:13px; cursor:pointer; white-space:nowrap; }
+.address-search-bar button:disabled { opacity:.6; cursor:not-allowed; }
 .facility-legend { display:flex; flex-wrap:wrap; gap:10px 16px; margin:0 0 16px; font-size:12px; color:#5c706c; }
 .facility-legend-item { display:inline-flex; align-items:center; gap:5px; }
 .facility-legend-item i { display:inline-block; width:10px; height:10px; border-radius:50%; }

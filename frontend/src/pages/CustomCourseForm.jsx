@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
@@ -6,6 +6,7 @@ import Header from '../components/layout/Header';
 import KakaoMap from '../components/map/KakaoMap';
 import { useUser } from '../contexts/UserContext';
 import { loadGangwonBoundary } from '../lib/gangwonBoundary';
+import { loadKakaoMaps } from '../lib/kakaoMaps';
 import { isPointInPolygon } from '../lib/pointInPolygon';
 
 const DIFFICULTY_OPTIONS = [
@@ -42,6 +43,17 @@ const _isNearGangwonBox = (point) =>
       point.lng >= box.lngMin &&
       point.lng <= box.lngMax,
   );
+// 장소 검색(handleAddressSearch)의 bounds 필터용/ 강원 박스(본토+철원군) 사각 하나.
+// ㅡ 카카오 bounds 옵션은 사각형 하나만 받아서 폴리곤처럼 정확 X,
+// UX용 검색필터라 넉넉하게, 실제 경유지 클릭 유효성은 여전히 정밀 폴리곤 판정.
+const _GANGWON_SEARCH_BOUNDS_BOX = {
+  latMin: Math.min(..._GANGWON_BOXES.map((box) => box.latMin)),
+  latMax: Math.max(..._GANGWON_BOXES.map((box) => box.latMax)),
+  lngMin: Math.min(..._GANGWON_BOXES.map((box) => box.lngMin)),
+  lngMax: Math.max(..._GANGWON_BOXES.map((box) => box.lngMax)),
+};
+// 장소 검색 결과로 지도 이동할 때 확대할 줌 레벨 (숫자가 작을수록 확대)
+const _SEARCH_ZOOM_LEVEL = 3;
 
 // Haversine 방식으로 두 좌표 간 직선거리 측정
 const _haversineDistanceKm = (a, b) => {
@@ -135,6 +147,26 @@ const CustomCourseForm = () => {
   // ㅡ 로드전엔 null 이라 isInGangwon이 그동안은 _isNearGangwonBox 근사치로 대신 판정
   const [gangwonBoundary, setGangwonBoundary] = useState(null);
   const [gangwonBoundaryFailed, setGangwonBoundaryFailed] = useState(false);
+
+  // 주소 검색 - 지도 화면을 그 위치로 이동만(경유지 추가는 여전히 지도 클릭으로).
+  // ㅡ 지도 수동으로 옮긴뒤 같은곳 다시 검색하면 안 움직이는 버그:
+  // searchSeq를 매 검색마다 증가시켜 panTo에 같이 실어서 좌표 같아도 항상 새 값.
+  const [addressQuery, setAddressQuery] = useState('');
+  const [addressSearching, setAddressSearching] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState('');
+  const [panTarget, setPanTarget] = useState(null);
+  const searchSeqRef = useRef(0);
+  // StrictMode(개발 모드)가 effect를 마운트→클린업→마운트 순으로 실행,
+  // 마운트 시점에 매번 true로 되돌려야 함 - 안 그러면 첫 클린업(가짜 언마운트)에서
+  // false로 떨어진 뒤 다시는 true가 안 되어, 실제로는 계속 마운트된 상태인데도
+  // 검색 콜백이 영원히 무시되어 "검색 중..."에서 멈추는 버그 발생(로컬 환경 버그)
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -262,6 +294,69 @@ const CustomCourseForm = () => {
     },
     [isInGangwon, applyWaypoints],
   );
+
+  // 장소/주소 검색 - 커스텀 코스 생성/수정 시 검색하면 지도 화면 이동시켜줌,
+  // 경유지 추가는 여전히 지도 클릭으로만.
+  // ㅡ 장소명/주소 둘 다 관대하게 찾는 키워드 검색으로 전환(JS SDK로 호출)
+  // ㅡ 1) bounds 옵션 없이 쓰면 전국 대상으로 검색됨,
+  //   _GANGWON_SEARCH_BOUNDS_BOX로 카카오 쪽 검색 범위 1차 좁힘.
+  // ㅡ 2) 카카오 bounds는 후보를 넓게 받아오는 용도,
+  //   실제로 강원인지는 _isNearGangwonBox(두 사각형 개별 판정, 클릭 유효성과 동일)
+  //   기준으로 결과를 한 번 더 걸러냄
+  const handleAddressSearch = async () => {
+    const query = addressQuery.trim();
+    if (!query) return;
+    setAddressSearchError('');
+    setAddressSearching(true);
+    try {
+      const kakao = await loadKakaoMaps();
+      const places = new kakao.maps.services.Places();
+      const box = _GANGWON_SEARCH_BOUNDS_BOX;
+      const bounds = new kakao.maps.LatLngBounds(
+        new kakao.maps.LatLng(box.latMin, box.lngMin),
+        new kakao.maps.LatLng(box.latMax, box.lngMax),
+      );
+      places.keywordSearch(
+        query,
+        (results, resultStatus) => {
+          if (!isMountedRef.current) return; // 콜백 도착 전에 페이지를 벗어난 경우
+          setAddressSearching(false);
+          if (resultStatus === kakao.maps.services.Status.ERROR) {
+            // ZERO_RESULT(그냥 결과 없음)와 구분 - 이건 서비스/네트워크 쪽 문제라
+            // "검색어를 바꿔보라"는 안내가 오히려 원인 파악을 헷갈리게 함
+            setAddressSearchError('검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+            return;
+          }
+          if (resultStatus !== kakao.maps.services.Status.OK || results.length === 0) {
+            setAddressSearchError('강원도 안에서 검색 결과가 없어요. 다른 표현으로 검색해보세요.');
+            return;
+          }
+          const match = results.find((r) =>
+            _isNearGangwonBox({ lat: Number(r.y), lng: Number(r.x) }),
+          );
+          if (!match) {
+            setAddressSearchError('강원도 안에서 검색 결과가 없어요. 다른 표현으로 검색해보세요.');
+            return;
+          }
+          searchSeqRef.current += 1;
+          setPanTarget({
+            lat: Number(match.y),
+            lng: Number(match.x),
+            level: _SEARCH_ZOOM_LEVEL,
+            // 좌표가 이전 검색과 완전히 같아도(같은 곳을 재검색) KakaoMap의 panTo
+            // effect가 반드시 재실행되도록 매번 달라지는 값을 같이 실어보냄
+            seq: searchSeqRef.current,
+          });
+        },
+        { bounds },
+      );
+    } catch (err) {
+      console.error('장소 검색 실패:', err);
+      if (!isMountedRef.current) return;
+      setAddressSearching(false);
+      setAddressSearchError('지도를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    }
+  };
 
   const handleRemoveWaypoint = (index) => {
     // 경유지 순서가 바뀌면 이전에 뜬 "N번째 경유지" 에러의 N이 안 맞을 수 있어 제거
@@ -473,6 +568,35 @@ const CustomCourseForm = () => {
                 ❗정밀 지역 검증 로드 실패, 대략적인 범위로 판정 중입니다.
               </p>
             )}
+            {/* 이미 이 페이지 전체가 course-form으로 감싸져 있어서, 폼 안 폼 중첩하면
+                안 됨(HTML 스펙 위반 - 브라우저가 제대로 처리 못 해 버그 생겼었음).
+                input에서 Enter 치면 바깥 폼이 제출하는 것을 막고,
+                onKeyDown에서 우리가 원하는 동작(검색)만 수동 실행. */}
+            <div className="address-search-bar">
+              <input
+                type="text"
+                value={addressQuery}
+                onChange={(event) => setAddressQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // isComposing: 한글 등 글자 조합 중 눌린 Enter(조합 확정용)는
+                  // 걸러냄 - 조합이 끝난 뒤 실제로 누른 Enter만 검색 트리거
+                  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                  event.preventDefault();
+                  handleAddressSearch();
+                }}
+                placeholder="지도를 이동할 장소/주소를 검색하세요 (예: 강릉시청, 도로명 주소 등)"
+              />
+              <button
+                type="button"
+                onClick={() => handleAddressSearch()}
+                disabled={addressSearching || !addressQuery.trim()}
+              >
+                {addressSearching ? '검색 중...' : '검색'}
+              </button>
+            </div>
+            {addressSearchError && (
+              <p className="kakao-map-hint-static error">{addressSearchError}</p>
+            )}
             {/* GPS는 선택 기능 — 응답을 기다리지 않고 기본(강원) 위치로 지도부터 띄우고,
                 아직 경유지를 안 찍은 상태에서 GPS가 강원 근처로 도착하면 center로 중심만 옮김 */}
             <KakaoMap
@@ -484,6 +608,12 @@ const CustomCourseForm = () => {
                   ? userLocation
                   : undefined
               }
+              panTo={panTarget}
+              // waypointsDirty가 false인 동안(=아직 지도 클릭/삭제로 안 건드린 상태)만
+              // 자동으로 화면을 맞춤 - 수정 페이지 진입 시 서버에서 불러온 기존 경유지를
+              // 처음 보여줄 때 한 번 전체가 보이게 해주고, 사용자가 손대기 시작하면
+              // (dirty=true) 그 뒤로는 매번 줌아웃되지 않게 꺼짐.
+              autoFit={!waypointsDirty}
               emptyHint="지도를 클릭해서 경유지를 추가하세요"
             />
             {error && errorField === 'waypoint' && <p className="onboarding-error">{error}</p>}
