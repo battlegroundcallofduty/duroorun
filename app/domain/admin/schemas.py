@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain.course.models import CourseType
+from app.domain.course.schemas import CoursePopularityItem
 from app.domain.facility.models import FacilityType
 from app.domain.user.models import ProviderType
 from app.domain.user.schemas import PublicProfileResponse
@@ -69,19 +69,6 @@ class MonthlyYearlyCountResponse(BaseModel):
 
     this_month: int
     this_year: int
-
-
-class CoursePopularityItem(BaseModel):
-    """인기 코스 랭킹 항목 (완주 횟수 기준).
-
-    course_type은 "전체" 랭킹(DRNB+커스텀 혼합)에서 프론트가 코스 상세 경로
-    (/courses/{course_type}/{course_id})를 조립할 때 필요해서 포함한다.
-    """
-
-    course_id: int
-    course_name: str
-    course_type: CourseType
-    completion_count: int
 
 
 class UserStatsResponse(BaseModel):
