@@ -550,15 +550,17 @@ const MyPage = () => {
                 {myReviews.map((review) =>
                   review.course_is_active ? (
                     <li key={review.review_id} className="review-item">
-                      {/* 코스가 살아있으면 수정/삭제는 코스 상세에서 하므로 이동 링크만 제공 */}
-                      <Link
-                        className="text-button"
-                        to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
-                        onClick={() => setIsReviewOpen(false)}
-                      >
-                        {review.course_name}
-                      </Link>
+                      {/* 가독성 지적(리뷰) - 코스명/난이도/날짜를 한 줄로 합쳐서 메타정보를
+                          한눈에 훑을 수 있게 하고, 리뷰 내용은 분리된 줄에 문단으로 둔다 */}
                       <div className="review-item-header">
+                        {/* 코스가 살아있으면 수정/삭제는 코스 상세에서 하므로 이동 링크만 제공 */}
+                        <Link
+                          className="text-button"
+                          to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
+                          onClick={() => setIsReviewOpen(false)}
+                        >
+                          {review.course_name}
+                        </Link>
                         <span
                           className={`review-difficulty-badge ${DIFFICULTY_COLOR[review.difficulty] ?? ''}`}
                         >
@@ -572,12 +574,12 @@ const MyPage = () => {
                     </li>
                   ) : (
                     <li key={review.review_id} className="review-item">
-                      {/* 코스가 삭제(비활성화)되면 코스 상세 API가 404라 그쪽 수정/삭제
-                          버튼에 닿을 수 없다 - 여기서 직접 지울 수 있게 한다(리뷰 지적) */}
-                      <span className="text-button" aria-disabled="true">
-                        {review.course_name} (삭제된 코스)
-                      </span>
                       <div className="review-item-header">
+                        {/* 코스가 삭제(비활성화)되면 코스 상세 API가 404라 그쪽 수정/삭제
+                            버튼에 닿을 수 없다 - 여기서 직접 지울 수 있게 한다(리뷰 지적) */}
+                        <span className="text-button" aria-disabled="true">
+                          {review.course_name} (삭제된 코스)
+                        </span>
                         <span
                           className={`review-difficulty-badge ${DIFFICULTY_COLOR[review.difficulty] ?? ''}`}
                         >

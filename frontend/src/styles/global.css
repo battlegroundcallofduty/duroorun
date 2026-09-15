@@ -213,14 +213,16 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .modal-overlay { position:fixed; inset:0; background:rgba(16,42,43,.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:24px; }
 .modal-image { max-width:min(90vw,480px); max-height:80vh; border-radius:12px; object-fit:contain; }
 .modal-close { position:absolute; top:24px; right:24px; width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,.15); color:#fff; font-size:22px; cursor:pointer; }
-.review-modal-card { position:relative; width:100%; max-width:360px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; }
+/* 리뷰 내용이 길면 좁은 폭(360px) 때문에 줄바꿈이 많아져 세로로 길게 늘어져
+   가독성이 떨어졌다 - 다른 콘텐츠 위주 모달(weather-modal-card 등)만큼 넓힌다 */
+.review-modal-card { position:relative; width:100%; max-width:800px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; }
 .review-modal-card h2 { font-size:18px; margin:0 0 10px; }
 .review-modal-card > p { color:#5c706c; font-size:14px; margin:0; }
 .review-modal-card .review-list { margin-top:16px; }
 .review-modal-card .review-item { text-align:left; }
-/* 마이페이지 리뷰 목록은 코스명 링크가 review-item-header보다 앞에 오는데, 코스명이
-   inline 요소(.text-button)라 margin이 안 먹어서 코스명/난이도/날짜가 다 붙어보였다 */
-.review-modal-card .review-item > .text-button { display:block; margin-bottom:8px; }
+/* 코스명/난이도/날짜를 review-item-header 한 줄에 같이 두므로, 그 안의 코스명
+   링크에는 다른 형제 요소(뱃지)와 나란히 붙도록 별도 margin을 주지 않는다 */
+.review-modal-card .review-item-header .text-button { padding-bottom:0; border-bottom:0; }
 .review-modal-close { position:static; margin:0 0 12px auto; display:block; background:#f1f1ee; color:var(--ink); }
 .weather-modal-card { position:relative; width:100%; max-width:420px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:left; font-family:'Apple SD Gothic Neo',sans-serif; }
 .weather-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; }
@@ -334,7 +336,7 @@ button.text-button:disabled { cursor:not-allowed; }
 .review-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px; }
 .review-load-more { display:block; margin:18px auto 0; }
 .review-item { padding:18px 20px; border:1px solid #e1e7e2; border-radius:10px; }
-.review-item-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.review-item-header { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-bottom:8px; }
 .review-author-link { margin-left:auto; font-size:12px; }
 .review-item-content { margin:0; color:#3d524f; font-family:'Apple SD Gothic Neo',sans-serif; font-size:17px; line-height:1.7; white-space:pre-wrap; }
 .review-difficulty-badge { font-size:13px; font-weight:700; padding:5px 12px; border-radius:14px; color:#fff; }
