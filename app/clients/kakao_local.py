@@ -45,7 +45,9 @@ async def search_nearby_places(lat: float, lng: float, radius_m: int, keyword: s
             f"카카오 로컬 API 응답이 지연되고 있습니다. (query={keyword})"
         ) from None
     except httpx.RequestError:
-        raise KakaoLocalAPIError(f"카카오 로컬 API에 연결할 수 없습니다. (query={keyword})") from None
+        raise KakaoLocalAPIError(
+            f"카카오 로컬 API에 연결할 수 없습니다. (query={keyword})"
+        ) from None
 
     if res.status_code != 200:
         raise KakaoLocalAPIError(

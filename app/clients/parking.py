@@ -65,7 +65,9 @@ async def get_parking_page(page_no: int, num_of_rows: int = 1000) -> tuple[list[
             res = await client.get(_PRK_STTUS_URL, params=params)
     except httpx.TimeoutException:
         logger.warning(
-            "주차정보 API 타임아웃(page=%d): %.1f초 만에 포기", page_no, time.monotonic() - started_at
+            "주차정보 API 타임아웃(page=%d): %.1f초 만에 포기",
+            page_no,
+            time.monotonic() - started_at,
         )
         raise ParkingAPIError("주차정보 API 응답이 지연되고 있습니다.") from None
     except httpx.RequestError:

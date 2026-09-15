@@ -228,7 +228,12 @@ async def create_course(
     # 코스 시작점 근처 화장실/주차장/편의점을 카카오 검색으로 찾아 편의시설에 저장
     # (실패해도 코스 생성은 유지)
     await sync_nearby_facilities(
-        session, course.course_id, course.start_lat, course.start_lng, course.end_lat, course.end_lng
+        session,
+        course.course_id,
+        course.start_lat,
+        course.start_lng,
+        course.end_lat,
+        course.end_lng,
     )
     course = await _get_custom_course(session, course.course_id)
     # (방금 생성된 코스라 리뷰가 없어 항상 None이지만, 나머지 3곳과 패턴을 맞춰둔다)
@@ -374,7 +379,12 @@ async def update_course(
         # 코스가 새 지역으로 이동한 경우에만 - create_course와 동일하게 시작점 근처
         # 화장실/주차장/편의점을 다시 찾아둔다
         await sync_nearby_facilities(
-            session, course.course_id, course.start_lat, course.start_lng, course.end_lat, course.end_lng
+            session,
+            course.course_id,
+            course.start_lat,
+            course.start_lng,
+            course.end_lat,
+            course.end_lng,
         )
     course = await _get_custom_course(session, course_id)
     await _attach_custom_course_extras(session, course)

@@ -186,7 +186,7 @@ async def get_facility(session: AsyncSession, facility_id: int) -> FacilityRespo
 def _bounding_box(lat: float, lng: float, radius_m: float) -> tuple[float, float, float, float]:
     """중심좌표 기준 반경을 넉넉히 감싸는 사각형.
 
-    ㅡ 위경도 1도당 거리 근사값으로 계산하는 사전 필터용(후보 줄이는 용도) 
+    ㅡ 위경도 1도당 거리 근사값으로 계산하는 사전 필터용(후보 줄이는 용도)
     ㅡ 실제 반경 판정은 _haversine_distance_m로 정확히.
     """
     lat_delta = radius_m / _METERS_PER_DEGREE_LAT
@@ -311,7 +311,9 @@ async def _fetch_nearby_places(
         return facility_type, keyword, e
 
 
-def _build_facility_rows(facility_type: FacilityType, keyword: str, documents: list[dict]) -> list[dict]:
+def _build_facility_rows(
+    facility_type: FacilityType, keyword: str, documents: list[dict]
+) -> list[dict]:
     rows = []
     for doc in documents:
         try:
@@ -360,7 +362,8 @@ async def sync_nearby_facilities(
     if (
         end_lat is not None
         and end_lng is not None
-        and _haversine_distance_m(start_lat, start_lng, end_lat, end_lng) > settings.FACILITY_RADIUS_M
+        and _haversine_distance_m(start_lat, start_lng, end_lat, end_lng)
+        > settings.FACILITY_RADIUS_M
     ):
         points.append((end_lat, end_lng))
 
@@ -408,7 +411,8 @@ async def sync_nearby_facilities(
     except Exception:
         await session.rollback()
         logger.exception(
-            "편의시설 자동 동기화 DB 저장 실패, 코스 생성/시드는 계속 진행 (course_id=%s)", course_id
+            "편의시설 자동 동기화 DB 저장 실패, 코스 생성/시드는 계속 진행 (course_id=%s)",
+            course_id,
         )
 
 
