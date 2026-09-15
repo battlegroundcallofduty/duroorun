@@ -330,7 +330,7 @@ async def get_records(
     )
     total = total_result.scalar_one()
     result = await session.execute(
-        select(Record, Course.course_name, Course.course_type)
+        select(Record, Course.course_name, Course.course_type, Course.is_active)
         .join(Course, Course.course_id == Record.course_id)
         .where(Record.user_id == user_id)
         # created_at만으로 정렬하면 같은 시각에 생성된 행끼리는 순서가 DB 실행마다
@@ -341,10 +341,11 @@ async def get_records(
         .limit(size)
     )
     items = []
-    for record, course_name, course_type in result.all():
+    for record, course_name, course_type, course_is_active in result.all():
         # Record 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값 - DB에는 저장되지 않는다.
         record.course_name = course_name
         record.course_type = course_type
+        record.course_is_active = course_is_active
         items.append(MyRecordResponse.model_validate(record))
     return MyRecordListResponse(
         items=items,
