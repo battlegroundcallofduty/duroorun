@@ -30,7 +30,6 @@ from app.domain.course.schemas import (
 from app.domain.facility.service import sync_nearby_facilities
 from app.domain.record.models import Record
 from app.domain.review.models import Review
-
 from app.domain.review.service import get_average_difficulty, get_review_summary
 
 logger = logging.getLogger(__name__)
