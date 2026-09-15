@@ -329,3 +329,4 @@ reviews        ──< review_images
 |------|------|
 | 위경도 PostGIS 전환 | 현재 FLOAT 타입으로 설계. 반경 검색 등 공간 쿼리 필요 시 PostGIS + GeoAlchemy2로 전환 |
 | pace 인덱스 추가 | 랭킹 기능 도입 시 `records.pace` 컬럼에 인덱스 추가 |
+| 422 검증 에러 메시지 한글화 (2026-09-15) | Pydantic 내장 제약(`max_length`/`min_length`/`ge`/`le`/`gt`/`lt`) 위반 시 영어 원문 메시지(예: "String should have at most 100 characters")가 프론트에 그대로 노출됨 - `CustomCourseForm.jsx`(`course_name`/`course_description`/`distance`/`estimated_time`/`waypoints` 개수/좌표 범위), `FacilityManagement.jsx`(`facility_name`/`facility_address`/`kakao_place_id`/좌표 범위) 둘 다 해당. 크래시 등 기능적 문제는 없음(422 `detail` 배열을 안전한 문자열로 변환하는 처리는 이미 돼있음, 순수 UX 다듬기 항목). 고칠 때는 백엔드 에러 응답의 `type`(`string_too_long` 등)+`ctx`(제약값)를 보고 필드명(한글 라벨)+한글 문구로 매핑하는 공용 유틸(`frontend/src/utils/`)을 새로 만들어 두 폼의 로컬 `_extractErrorMessage`를 대체하는 방향으로 검토 |

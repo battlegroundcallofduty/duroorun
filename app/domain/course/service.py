@@ -352,7 +352,7 @@ async def update_course(
         setattr(course, field, value)
 
     # waypoints 필드가 요청에 아예 없으면 기존 경유지 유지, null이면 400
-    start_coords_changed = False
+    coords_changed = False
     if "waypoints" in body.model_fields_set:
         if body.waypoints is None:
             raise HTTPException(
@@ -366,9 +366,17 @@ async def update_course(
         # ㅡ flush로 기존 행 삭제를 먼저 확정시킨 뒤 채워넣음
         await session.flush()
         course.waypoints = _build_waypoints(body.waypoints)
-        start_coords_changed = (course.start_lat, course.start_lng) != (
+        # 시작점뿐 아니라 도착점만 바뀐 경우도 재동기화 대상
+        coords_changed = (
+            course.start_lat,
+            course.start_lng,
+            course.end_lat,
+            course.end_lng,
+        ) != (
             body.waypoints[0].latitude,
             body.waypoints[0].longitude,
+            body.waypoints[-1].latitude,
+            body.waypoints[-1].longitude,
         )
         course.start_lat = body.waypoints[0].latitude
         course.start_lng = body.waypoints[0].longitude
@@ -379,9 +387,9 @@ async def update_course(
         course.end_sigun = find_sigungu(body.waypoints[-1].latitude, body.waypoints[-1].longitude)
 
     await session.commit()
-    if start_coords_changed:
-        # 코스가 새 지역으로 이동한 경우에만 - create_course와 동일하게 시작점 근처
-        # 화장실/주차장/편의점을 다시 찾아둔다
+    if coords_changed:
+        # 코스가 새 지역으로 이동한 경우에만(시작/도착 어느 쪽이든)
+        # 코스 생성과 동일하게 시작/도착점 근처 편의시설 다시 찾아둔다.
         await sync_nearby_facilities(
             session,
             course.course_id,

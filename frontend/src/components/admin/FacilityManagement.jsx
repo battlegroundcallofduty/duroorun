@@ -16,6 +16,26 @@ const toMarker = (form) => {
   return Number.isNaN(lat) || Number.isNaN(lng) ? [] : [{ lat, lng }];
 };
 
+// FastAPI 422 응답의 detail은 문자열이 아니라 필드별 검증 에러 객체 배열로 옴
+// ㅡ 그 배열을 그대로 state에 넣고 jsx에 렌더하면 화면 전체 하얀 크래시 버그 생김.
+// CustomCourseForm.jsx의 _extractErrorMessage와 같은 방식으로
+// 항상 안전한 문자열로 변환.
+const _extractErrorMessage = (detail, fallback) => {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item?.msg) return null;
+        const field = item.loc?.at(-1);
+        const msg = item.msg.replace(/^Value error,\s*/, '');
+        return typeof field === 'string' ? `${field}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    if (messages.length > 0) return messages.join(' / ');
+  }
+  return fallback;
+};
+
 const PAGE_SIZE = 20;
 const FACILITY_TYPE_LABEL = { RESTROOM: '화장실', PARKING: '주차장', LOCKER: '보관함', OTHERS: '기타' };
 const EMPTY_FORM = {
@@ -103,7 +123,7 @@ const FacilityManagement = () => {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setCreateError(data?.detail ?? '편의시설 등록에 실패했어요.');
+        setCreateError(_extractErrorMessage(data?.detail, '편의시설 등록에 실패했어요.'));
         return;
       }
       setCreateForm(EMPTY_FORM);
@@ -153,7 +173,7 @@ const FacilityManagement = () => {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setEditError(data?.detail ?? '편의시설 수정에 실패했어요.');
+        setEditError(_extractErrorMessage(data?.detail, '편의시설 수정에 실패했어요.'));
         return;
       }
       setEditingId(null);

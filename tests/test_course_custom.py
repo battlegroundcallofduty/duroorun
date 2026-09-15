@@ -228,7 +228,7 @@ async def test_update_course_replaces_waypoints_and_start_end_coords(
         ]
         assert (result.start_lat, result.start_lng) == (38.2070, 128.5918)
         assert (result.end_lat, result.end_lng) == (37.7519, 128.8761)
-        # 시작 좌표가 바뀐 경우에만 편의시설 재동기화가 트리거되는지,
+        # 시작/종료 좌표가 바뀐 경우 편의시설 재동기화가 트리거되는지,
         # 시작/종료 좌표를 다 넘기는지 확인
         mock_sync_restrooms.assert_awaited_once_with(
             db_session, course.course_id, 38.2070, 128.5918, 37.7519, 128.8761
@@ -236,6 +236,41 @@ async def test_update_course_replaces_waypoints_and_start_end_coords(
     finally:
         # 도커 테스트 돌리다 뒷정리 단계에서 FK 제약 위반이 나서 여기서 먼저 정리
         # ㅡ finally로 course_waypoints를 먼저 지우도록 고침
+        await db_session.execute(
+            delete(CourseWaypoint).where(CourseWaypoint.course_id == course.course_id)
+        )
+        await db_session.commit()
+
+
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
+async def test_update_course_syncs_facilities_when_only_end_point_changes(
+    mock_sync_restrooms, db_session, custom_course_owner
+):
+    """시작점은 그대로 두고 종료점만 옮겨도 편의시설 재동기화가 트리거.
+
+    ㅡ custom_course_owner의 원래 시작 좌표(37.75, 128.9)를 첫 waypoint로 그대로
+      재사용하고, 마지막 waypoint(종료 좌표)만 다른 곳으로 바꿔서 검증
+    """
+    course, owner = custom_course_owner
+    new_waypoints = [
+        {"latitude": 37.75, "longitude": 128.9},  # 원래 시작 좌표와 동일 (안 바뀜)
+        {"latitude": 37.7519, "longitude": 128.8761},  # 강릉시청 - 원래 종료 좌표와 다름
+    ]
+
+    try:
+        result = await update_course(
+            session=db_session,
+            user_id=owner.user_id,
+            course_id=course.course_id,
+            body=CourseUpdateRequest(waypoints=new_waypoints),
+        )
+
+        assert (result.start_lat, result.start_lng) == (37.75, 128.9)
+        assert (result.end_lat, result.end_lng) == (37.7519, 128.8761)
+        mock_sync_restrooms.assert_awaited_once_with(
+            db_session, course.course_id, 37.75, 128.9, 37.7519, 128.8761
+        )
+    finally:
         await db_session.execute(
             delete(CourseWaypoint).where(CourseWaypoint.course_id == course.course_id)
         )

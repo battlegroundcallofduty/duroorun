@@ -12,6 +12,13 @@ export const useAdminPagedList = (path, buildQuery, deps) => {
   const [error, setError] = useState('');
   const requestIdRef = useRef(0);
   const sizeRef = useRef(20); // 응답 size 필드에서 갱신 - "마지막 페이지가 지금 몇 번인지" 계산
+  // reload()는 상태 변경(토글 등) API 요청이 끝난 뒤에 호출(버튼 눌렀을떄 시점 필터 기억)
+  // ㅡ 비활성화 버튼 누르고 서버 응답 기다리는 동안 화면 목록과 실제 선택 필터 어긋날 수 있음.
+  // page, buildQuery(필터 조건 함수)를 ref에 저장해두고, 렌더될때마다 최신값으로 ref 덮어씀.
+  const pageRef = useRef(1);
+  const buildQueryRef = useRef(buildQuery);
+  pageRef.current = page;
+  buildQueryRef.current = buildQuery;
 
   const fetchPage = async (targetPage, { allowClamp = true } = {}) => {
     if (!path) return false;
@@ -19,7 +26,7 @@ export const useAdminPagedList = (path, buildQuery, deps) => {
     setLoading(true);
     setError('');
     try {
-      const query = buildQuery(targetPage);
+      const query = buildQueryRef.current(targetPage);
       const res = await apiFetch(query ? `${path}?${query}` : path);
       if (requestIdRef.current !== myRequestId) return true;
       if (!res.ok) {
@@ -43,6 +50,7 @@ export const useAdminPagedList = (path, buildQuery, deps) => {
       setItems(data.items);
       setTotal(data.total);
       setPage(targetPage);
+      pageRef.current = targetPage;
       return true;
     } catch (err) {
       if (requestIdRef.current === myRequestId) {
@@ -66,7 +74,9 @@ export const useAdminPagedList = (path, buildQuery, deps) => {
 
   const goToPage = (targetPage) => fetchPage(targetPage);
   // 수정/토글 등 액션 후 지금 보고 있는 페이지 그대로 새로고침
-  const reload = () => fetchPage(page);
+  // ㅡ page(클로저 변수) 대신 pageRef.current를 읽어,
+  // 이 reload가 호출되는 시점 기준 최신 페이지를 쓴다
+  const reload = () => fetchPage(pageRef.current);
 
   return { items, total, page, loading, error, goToPage, reload };
 };
