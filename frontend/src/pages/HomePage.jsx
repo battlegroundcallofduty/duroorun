@@ -150,7 +150,10 @@ export default function Home() {
         <section className="discovery">
           <div className="section-heading">
             <div><span className="section-kicker">커스텀 코스</span><h2>러너들이 직접 만든 인기 코스 TOP3</h2></div>
-            <Link to="/courses">전체 코스 보기 <span>→</span></Link>
+            {/* CourseList.jsx가 ?type=custom으로 시작 탭을 커스텀으로 여는 걸 이미
+                지원하고 있었는데(주석에 이 링크용이라고 적혀있었음) 정작 여기서 안 쓰고
+                있었다 - 연결한다 */}
+            <Link to="/courses?type=custom">전체 코스 보기 <span>→</span></Link>
           </div>
           <PopularCourseGrid courses={customCourses} />
         </section>
@@ -163,30 +166,32 @@ export default function Home() {
               <span className="section-kicker">달리며 만나는 곳</span>
               <h2>{topCourse.course_name} 주변에서 만나는 관광지</h2>
             </div>
-            <div className="attraction-heading-actions">
-              <div className="attraction-scroll-arrows">
-                <button
-                  type="button"
-                  className="attraction-scroll-arrow"
-                  onClick={() => scrollAttractions(-1)}
-                  aria-label="이전 관광지"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="attraction-scroll-arrow"
-                  onClick={() => scrollAttractions(1)}
-                  aria-label="다음 관광지"
-                >
-                  ›
-                </button>
-              </div>
+          </div>
+          {/* CourseDetail.jsx의 주변 관광지 섹션과 동일하게, 화살표를 제목 옆이 아니라
+              힌트 문구 바로 옆으로 옮겨서 스크롤 조작과 그 안내문이 한눈에 붙어 보이게 한다 */}
+          <div className="attraction-hint-row">
+            <p className="kakao-map-hint-static">
+              코스마다 시작·종료 지점 주변 관광지를 실시간으로 추천해드려요. 달리는 동안 여행하듯 강원을 만나보세요.
+            </p>
+            <div className="attraction-scroll-arrows">
+              <button
+                type="button"
+                className="attraction-scroll-arrow"
+                onClick={() => scrollAttractions(-1)}
+                aria-label="이전 관광지"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="attraction-scroll-arrow"
+                onClick={() => scrollAttractions(1)}
+                aria-label="다음 관광지"
+              >
+                ›
+              </button>
             </div>
           </div>
-          <p className="kakao-map-hint-static">
-            코스마다 시작·종료 지점 주변 관광지를 실시간으로 추천해드려요. 달리는 동안 여행하듯 강원을 만나보세요.
-          </p>
           <div className="attraction-scroll-row" ref={attractionScrollRef}>
             {attractions.map((attraction) => (
               <div key={attraction.content_id ?? attraction.title} className="attraction-card">

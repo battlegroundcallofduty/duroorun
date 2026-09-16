@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
 import KakaoMap from '../components/map/KakaoMap';
 import { useUser } from '../contexts/UserContext';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { loadGangwonBoundary } from '../lib/gangwonBoundary';
 import { loadKakaoMaps } from '../lib/kakaoMaps';
 import { isPointInPolygon } from '../lib/pointInPolygon';
@@ -134,9 +135,9 @@ const CustomCourseForm = () => {
   };
   // 아래 loadError: 코스 조회(GET) 실패 전용 (위의 폼 조작 에러 error 와 분리)
   const [loadError, setLoadError] = useState('');
-  const [notice, setNotice] = useState('');
   // 신규 생성 저장 직후에만 씀: 완료 모달에서 "사진 추가"/"나만의 코스로 이동" 선택
   const [createdCourseId, setCreatedCourseId] = useState(null);
+  const courseSavedModalRef = useRef(null);
   // GPS: 지도 초기 위치를 잡아주는 편의 기능/ 경유지 좌표는 지도 클릭으로 가능
   // 강원도 밖 외지인들도 커스텀코스 생성하게 해야 지역관광의 의미가 있다고 판단.
   // GPS 위치가 강원 근처일 때만 그 좌표로 지도를 열고,
@@ -259,15 +260,17 @@ const CustomCourseForm = () => {
     document.getElementById('course-photos-section')?.scrollIntoView({ behavior: 'smooth' });
   }, [isEditMode, loading]);
 
+  // 다른 모달들(MyPage의 내 리뷰/프로필 사진, CourseDetail의 날씨 브리핑)과 동일하게
+  // Tab이 모달 밖으로 새지 않게 잡는다
+  useFocusTrap(courseSavedModalRef, createdCourseId != null);
+
   const handleFieldChange = (field) => (event) => {
-    setNotice(''); // 저장 후 더 고치면 "저장됐어요" 지움
     setForm({ ...form, [field]: event.target.value });
   };
 
   // waypoints를 바꾸는 세 핸들러(클릭 추가/개별 삭제/전체 삭제)가 공유하는 로직
   // - updater는 setWaypoints처럼 배열 또는 (prev) => next 함수 둘 다 받음.
   const applyWaypoints = useCallback((updater) => {
-    setNotice(''); // 위 handleFieldChange와 동일한 이유
     setWaypointsDirty(true);
     setWaypoints((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -413,11 +416,14 @@ const CustomCourseForm = () => {
       const data = await res.json();
       setWaypointsDirty(false);
       if (isEditMode) {
-        setNotice('저장됐어요');
-      } else {
-        // 완료 모달에서 사용자가 사진 추가/목록 이동을 직접 고르게 함
-        setCreatedCourseId(data.course_id);
+        // '저장하기'와 '코스 상세 확인'을 하나로 합침(팀 결정) - 저장 성공 즉시 상세로
+        // 이동한다. MyCourses.jsx의 코스 카드와 동일하게 from state를 넘겨서, 상세
+        // 페이지의 "목록으로"가 전체 코스 목록이 아니라 나만의 코스로 돌아가게 한다
+        navigate(`/courses/custom/${courseId}`, { state: { from: '/courses/custom/mine' } });
+        return;
       }
+      // 완료 모달에서 사용자가 사진 추가/목록 이동을 직접 고르게 함
+      setCreatedCourseId(data.course_id);
     } catch (err) {
       console.error('커스텀 코스 저장 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -457,7 +463,6 @@ const CustomCourseForm = () => {
       }
       const data = await res.json();
       setImages(data.images ?? []);
-      setNotice(''); // 사진도 저장 후 화면 상태를 바꾸는 수정이므로 동일하게 지움
     } catch (err) {
       console.error('코스 이미지 업로드 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -478,7 +483,6 @@ const CustomCourseForm = () => {
         return;
       }
       setImages((prev) => prev.filter((img) => img.image_id !== imageId));
-      setNotice('');
     } catch (err) {
       console.error('코스 이미지 삭제 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -494,7 +498,8 @@ const CustomCourseForm = () => {
         showError('삭제에 실패했어요');
         return;
       }
-      navigate('/courses');
+      // 삭제한 건 내가 만든 코스니, 전체 코스 목록보다 나만의 코스로 돌아가는 게 맞다
+      navigate('/courses/custom/mine');
     } catch (err) {
       console.error('커스텀 코스 삭제 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -528,7 +533,7 @@ const CustomCourseForm = () => {
       <Header />
       <main className="course-detail-page">
         <h1 className="course-form-title">{isEditMode ? '커스텀 코스 수정' : '커스텀 코스 생성'}</h1>
-        <p className="course-detail-desc">🏃 커스텀 코스는 현재 강원도 지역에서만 만들 수 있어요.</p>
+        <p className="course-detail-desc"> 커스텀 코스는 현재 강원도 지역에서만 만들 수 있습니다.</p>
 
         {/* user가 아직 null이면(로그인 확인 전이거나 곧 /login으로 이동), 폼 숨김 -
             신규 생성 모드는 loading이 false라 !user 없으면 폼이 잠깐 노출됨 */}
@@ -562,10 +567,8 @@ const CustomCourseForm = () => {
             />
 
             <label>경유지 (지도를 클릭해서 순서대로 추가)</label>
-            <p className="kakao-map-hint-static">⚠️ 지도가 제대로 표시되지 않으면 새로고침을 한번 해주세요</p>
             <p className="kakao-map-hint-static">
-              ➡️ 경유지끼리 직선으로 이어 경로를 표시합니다. 실제 도로·트레일과 다를 수 있습니다.
-              촘촘히 찍을수록 실제 경로에 가까워집니다.
+              ㅡ 경유지끼리 직선으로 이어 경로를 표시합니다. 촘촘히 찍을수록 실제 경로에 가까워집니다.
             </p>
             {gangwonBoundaryFailed && (
               <p className="kakao-map-hint-static">
@@ -687,34 +690,40 @@ const CustomCourseForm = () => {
                       </button>
                     </div>
                   ))}
+                  {/* 사진 카드들과 같은 자리에, 같은 크기의 점선 박스로 - 파일 업로드에서
+                      흔히 쓰는 "추가" 타일 패턴(밑줄 텍스트 링크보다 존재감이 더 명확함) */}
+                  {images.length < COURSE_IMAGE_MAX_COUNT && (
+                    <label
+                      className="course-photo-add"
+                      aria-disabled={uploadingImage || undefined}
+                    >
+                      <span className="course-photo-add-icon" aria-hidden="true">
+                        +
+                      </span>
+                      {uploadingImage ? '업로드 중...' : '사진 추가'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                        hidden
+                      />
+                    </label>
+                  )}
                 </div>
-                {images.length < COURSE_IMAGE_MAX_COUNT && (
-                  <label className="mypage-image-upload">
-                    {uploadingImage ? '업로드 중...' : '사진 추가'}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={handleImageUpload}
-                      disabled={uploadingImage}
-                      hidden
-                    />
-                  </label>
-                )}
               </div>
             )}
 
             {error && errorField !== 'waypoint' && <p className="onboarding-error">{error}</p>}
-            {notice && <p className="mypage-success">{notice}</p>}
 
             <div className="course-form-actions">
-              <button type="submit" className="primary-button" disabled={saving}>
-                {saving ? '저장 중...' : '저장하기'}
+              {/* '저장하기'가 저장 + 코스 상세로 이동을 함께 한다(팀 결정) - 별도 '코스
+                  상세 확인' 버튼은 더 이상 필요 없어 뺐다. 사진 업로드 중에는 막는다 -
+                  안 막으면 저장 성공 즉시 상세로 이동해버려서, 업로드가 아직 서버에 반영
+                  되기 전 스냅샷을 보게 돼 사진이 안 올라간 것처럼 보일 수 있다(리뷰 지적) */}
+              <button type="submit" className="primary-button" disabled={saving || uploadingImage}>
+                {saving ? '저장 중...' : uploadingImage ? '사진 업로드 중...' : '저장하기'}
               </button>
-              {isEditMode && (
-                <Link to={`/courses/custom/${courseId}`} className="secondary-button">
-                  코스 상세 확인
-                </Link>
-              )}
               {isEditMode && (
                 <button
                   type="button"
@@ -730,11 +739,18 @@ const CustomCourseForm = () => {
       </main>
 
       {createdCourseId != null && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="코스 저장 완료">
-          <div className="review-modal-card">
+        <div
+          ref={courseSavedModalRef}
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="코스 저장 완료"
+        >
+          <div className="course-saved-modal-card">
             <h2>저장이 완료되었습니다</h2>
             <p>사진을 추가해서 코스를 더 알아보기 쉽게 꾸며보세요.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 20 }}>
+            {/* 좁은 화면(모바일)에서 두 버튼이 나란히 넘치지 않도록 wrap - 넘치면 자연히 세로로 쌓임 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, marginTop: 20 }}>
               <button
                 type="button"
                 className="primary-button"
@@ -751,7 +767,7 @@ const CustomCourseForm = () => {
               </button>
               <button
                 type="button"
-                className="text-button"
+                className="secondary-button"
                 onClick={() => {
                   setCreatedCourseId(null);
                   navigate('/courses/custom/mine');

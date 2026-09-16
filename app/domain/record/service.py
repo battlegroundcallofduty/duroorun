@@ -35,8 +35,8 @@ def _haversine_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) ->
 def _check_completion(
     user_start_lat: float,
     user_start_lng: float,
-    user_end_lat: float,
-    user_end_lng: float,
+    user_end_lat: float | None,
+    user_end_lng: float | None,
     course_start_lat: float | None,
     course_start_lng: float | None,
     course_end_lat: float | None,
@@ -46,9 +46,12 @@ def _check_completion(
 
     정방향(유저 시작≈코스 시작, 유저 종료≈코스 종료) 또는 역방향(유저 시작≈코스 종료,
     유저 종료≈코스 시작) 중 하나라도 만족하면 완주로 인정한다 (해안 트레일 양방향 주행 흔함).
-    코스 좌표가 없으면(시드 누락 등) 검증 불가로 보고 미완주 처리한다.
+    코스 좌표가 없으면(시드 누락 등) 검증 불가로 보고 미완주 처리한다. 종료 시점에 유저
+    위치를 못 가져온 경우(권한 거부, GPS 타임아웃 등)도 동일하게 검증 불가로 처리한다.
     """
     if None in (course_start_lat, course_start_lng, course_end_lat, course_end_lng):
+        return False
+    if user_end_lat is None or user_end_lng is None:
         return False
 
     forward_start = _haversine_distance_m(
@@ -186,9 +189,9 @@ async def end_record(
     # 이미 완주한 기록의 누적 거리 통계가 소급으로 바뀌지 않게 하기 위함
     if record.is_completed and course is not None:
         record.distance_km = course.distance
-    # 완주 인증이 안 된 이유가 유저 잘못이 아니라 코스 쪽 문제(비활성화/좌표 없음)일 때만
-    # 안내 문구를 채운다. Record 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값 -
-    # DB에는 저장되지 않는다.
+    # 완주 인증이 안 된 이유가 유저 "잘못"이 아니라 코스 쪽 문제(비활성화/좌표 없음)이거나
+    # 종료 시점에 위치를 못 가져온 경우(권한 거부/GPS 타임아웃)일 때 안내 문구를 채운다.
+    # Record 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값 - DB에는 저장되지 않는다.
     if not course_active:
         record.verification_message = (
             "러닝 도중 코스가 비활성화되어 완주 인증이 처리되지 않았어요. "
@@ -197,6 +200,11 @@ async def end_record(
     elif not course_has_coords:
         record.verification_message = (
             "이 코스는 완주 인증을 지원하지 않아요. 다만 러닝 기록은 기록할 수 있어요."
+        )
+    elif record.user_end_lat is None or record.user_end_lng is None:
+        record.verification_message = (
+            "종료 시점 위치를 확인하지 못해 완주 인증이 처리되지 않았어요. "
+            "다만 러닝 기록은 기록할 수 있어요."
         )
     else:
         record.verification_message = None

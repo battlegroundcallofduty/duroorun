@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
+import KakaoMap from '../components/map/KakaoMap';
 import { useUser } from '../contexts/UserContext';
 import { DIFFICULTY_LABEL } from '../utils/difficulty';
 import { formatElapsed, formatPace } from '../utils/format';
@@ -19,6 +20,41 @@ const getPosition = () =>
     });
   });
 
+// 러닝 시작/종료 효과음. 성공이 확인되기 전에 들리면 "소리만 듣고 성공한 줄 알았는데
+// 실제로는 실패"하는 오해가 생길 수 있어(리뷰 지적), 성공 확인 후에만 들리게 한다.
+// 그런데 Safari/iOS(WebKit)는 play()가 유저 제스처의 동기 호출 스택 안에서 호출된
+// 경우에만 자동재생 정책을 통과시킨다 - 성공 확인(await 이후)까지 기다렸다가 처음
+// play()를 호출하면 막혀버린다. 그래서 클릭 즉시 한 번 "예열" 재생만 해 제스처 요건을
+// 만족시켜두고(사용자에게는 안 들림), 실제 성공이 확인된 뒤 같은 <audio> 엘리먼트를
+// 처음부터 다시 재생한다 - 한 번 유저 제스처로 재생 이력이 생긴 엘리먼트는 이후
+// 비동기로 다시 play()해도 추가 제스처 없이 허용된다.
+// 예열 시 무음 처리는 volume이 아니라 muted로 한다 - iOS Safari는 HTMLMediaElement의
+// volume을 JS로 설정해도 적용되지 않는(하드웨어 볼륨 버튼으로만 제어) 문서화된 제한이
+// 있어(https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/Using_HTML5_Audio_Video/Device-SpecificConsiderations/Device-SpecificConsiderations.html),
+// volume=0으로는 아이폰에서 예열 단계 소리를 막지 못한다(리뷰 지적). muted는 iOS에서도
+// JS로 정상 제어된다고 알려진 속성이라 이걸 대신 쓴다.
+const primeSound = (src) => {
+  try {
+    const audio = new Audio(src);
+    audio.muted = true;
+    audio.play().catch(() => {});
+    return audio;
+  } catch {
+    return null;
+  }
+};
+
+const revealSound = (audio) => {
+  if (!audio) return;
+  try {
+    audio.currentTime = 0;
+    audio.muted = false;
+    audio.play().catch(() => {});
+  } catch {
+    // 조용히 무시
+  }
+};
+
 const RecordStart = () => {
   const { courseType, courseId } = useParams();
   const navigate = useNavigate();
@@ -33,12 +69,15 @@ const RecordStart = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState('');
   const [blockedMessage, setBlockedMessage] = useState('');
-  // end_failed 화면에서 "기록이 저장되지 않았어요"를 보여줄지 판단하는 데 쓴다. GPS
-  // 실패는 서버에 종료 요청 자체가 안 나간 것이라 기록이 여전히 멀쩡히 진행 중이므로,
-  // 저장 실패와 다른 안내를 보여준다.
-  const [endFailedIsGps, setEndFailedIsGps] = useState(false);
   // 다른 코스에서 진행 중인 기록이 있을 때, 그 기록 화면으로 바로 이동할 수 있게 위치를 기억해둔다
   const [blockedRecordTarget, setBlockedRecordTarget] = useState(null);
+  // 러닝 중 지도에 표시할 실시간 GPS 위치 - watchPosition 콜백에서만 갱신한다
+  const [livePosition, setLivePosition] = useState(null);
+  // GPS 수신이 끊겼는지(권한 취소, 신호 불량 등) - true여도 livePosition은 지우지 않고
+  // 마지막 좌표를 그대로 유지한다. 대신 화면에 "갱신 안 됨"을 안내해, 오래된 위치를
+  // 현재 위치처럼 오인하지 않게 한다(리뷰 지적)
+  const [locationLost, setLocationLost] = useState(false);
+  const watchIdRef = useRef(null);
 
   // 일시정지 누적 시간(ms)을 로컬에서 직접 추적한다 - 진행 중(pause/resume 시각)엔
   // 여기서 직접 계산하고, 새로고침 등으로 진행 중인 기록을 복구할 때는 checkActiveRecord가
@@ -95,6 +134,8 @@ const RecordStart = () => {
       setBlockedRecordTarget(null);
       setError('');
       setPhase('idle');
+      setLivePosition(null);
+      setLocationLost(false);
       setRecord(null);
       try {
         const res = await apiFetch('/v1/records/?page=1&size=1');
@@ -151,7 +192,41 @@ const RecordStart = () => {
     return () => clearInterval(timer);
   }, [phase, record]);
 
+  // 러닝 중(running)일 때만 실시간 위치를 계속 추적해 지도에 표시한다 - 일시정지/종료
+  // 중엔 꺼서 배터리를 아낀다. 위치 추적은 지도 표시용 부가 기능이라, 실패해도(권한
+  // 거부 등) 타이머/일시정지/종료 같은 핵심 기록 기능에는 전혀 영향을 주지 않는다.
+  // 코스에 애초에 표시할 좌표(커스텀 경유지 또는 DRNB 시작/종료)가 없으면 지도 자체가
+  // 안 뜨는데, 그런 코스에서도 계속 GPS를 폴링하면 아무 효과 없이 배터리만 쓰게
+  // 된다(리뷰 지적) - 지도가 뜰 수 있는 코스일 때만 추적한다.
+  useEffect(() => {
+    const hasMapData =
+      (courseType === 'custom' && course?.waypoints?.length > 0) ||
+      (courseType === 'drnb' && course?.has_verification_coords);
+    if (phase !== 'running' || !navigator.geolocation || !hasMapData) return undefined;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLivePosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationLost(false);
+      },
+      () => {
+        // 기록 자체는 계속 진행된다 - 다만 마지막 좌표가 계속 현재 위치처럼 보이지
+        // 않게 "갱신 실패" 상태만 남겨둔다(livePosition은 그대로 유지, 리뷰 지적)
+        setLocationLost(true);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+    return () => {
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [phase, courseType, course]);
+
   const handleStart = async () => {
+    // 클릭 즉시(동기 구간) 무음으로 예열만 해둔다 - 실제로 들리는 건 시작 성공이
+    // 확인된 뒤 revealSound에서다
+    const startAudio = primeSound('/assets/start.mp3');
     // GPS 응답을 기다리는 동안(최대 10초) 다른 코스 화면으로 이동했을 수 있다 - 같은
     // 컴포넌트가 재사용되므로, 그 사이 이동했다면 지금 보고 있는 화면을 이 요청의
     // 결과로 건드리지 않는다 (요청 자체도 더 이상 보낼 필요가 없어 취소한다)
@@ -192,6 +267,7 @@ const RecordStart = () => {
       if (isStale()) return;
       pausedAccumMsRef.current = 0;
       pausedAtRef.current = null;
+      revealSound(startAudio);
       setRecord(data);
       setElapsedSeconds(0);
       setPhase('running');
@@ -250,8 +326,9 @@ const RecordStart = () => {
   // 성공적으로 처리됐다는 뜻이다(네트워크 에러로 그 응답을 못 받고 "저장 안 됨"으로 표시된 뒤
   // "다시 시도"를 눌렀을 때 등). 실제 저장된 결과를 조회해서 보여준다. 성공하면 true.
   // isStale은 호출한 쪽(handleEnd)의 코스 staleness 체크를 그대로 넘겨받아, 조회하는
-  // 사이 다른 코스 화면으로 이동했으면 그 결과로 지금 화면을 건드리지 않는다.
-  const tryShowActualResult = async (recordId, isStale) => {
+  // 사이 다른 코스 화면으로 이동했으면 그 결과로 지금 화면을 건드리지 않는다. endAudio는
+  // 종료가 실제로 확인된 경우에만(재확인 경로여도) 예열해둔 종료음을 들려주기 위함.
+  const tryShowActualResult = async (recordId, isStale, endAudio) => {
     try {
       const checkRes = await apiFetch(`/v1/records/${recordId}`);
       if (isStale()) return true;
@@ -259,6 +336,7 @@ const RecordStart = () => {
         const checkData = await checkRes.json();
         if (isStale()) return true;
         if (checkData.ended_at) {
+          revealSound(endAudio);
           setResult(checkData);
           setPhase('finished');
           return true;
@@ -271,6 +349,8 @@ const RecordStart = () => {
   };
 
   const handleEnd = async () => {
+    // handleStart와 동일하게 클릭 즉시 무음으로 예열만 해둔다
+    const endAudio = primeSound('/assets/end.mp3');
     // handlePause/handleResume와 동일하게, 응답을 기다리는 사이 다른 코스로 이동했을 수
     // 있다(같은 컴포넌트가 재사용되므로) - 그러면 지금 보고 있는 화면을 이 요청의 결과로
     // 건드리지 않는다. record는 비동기 처리 중 바뀔 수 있으니 시작 시점 값을 캡처해둔다.
@@ -281,29 +361,23 @@ const RecordStart = () => {
     setError('');
     setPhase('ending');
 
-    let position;
+    // 종료 시점 위치를 못 가져와도(권한 거부, GPS 타임아웃 등) 기록 자체는 저장할 수
+    // 있게 한다 - 더 이상 여기서 막지 않고, 좌표 없이 진행한다. 완주 인증만 처리되지
+    // 않고 그 사유는 백엔드가 verification_message로 안내해준다(요청 반영).
+    let position = null;
     try {
       position = await getPosition();
     } catch {
-      if (isStale()) return;
-      // GPS 실패 자체는 이번 시도가 서버에 안 나간 것이지만, "다시 시도" 흐름에서는
-      // 이전 시도가 이미 서버에 성공했을 수 있다(응답만 유실됐던 경우) - 그 경우까지
-      // "기록은 계속 진행 중"이라고 잘못 안내하지 않도록 먼저 실제 결과를 확인한다
-      if (await tryShowActualResult(requestedRecordId, isStale)) return;
-      setError('위치 정보를 가져올 수 없어요. 위치 권한을 확인해주세요.');
-      setEndFailedIsGps(true);
-      setPhase('end_failed');
-      return;
+      // 조용히 무시 - 좌표 없이 종료 요청을 계속 진행한다
     }
     if (isStale()) return;
-    setEndFailedIsGps(false);
 
     try {
       const res = await apiFetch(`/v1/records/${requestedRecordId}/end`, {
         method: 'PATCH',
         body: JSON.stringify({
-          user_end_lat: position.coords.latitude,
-          user_end_lng: position.coords.longitude,
+          user_end_lat: position?.coords.latitude ?? null,
+          user_end_lng: position?.coords.longitude ?? null,
         }),
       });
       if (isStale()) return;
@@ -314,7 +388,7 @@ const RecordStart = () => {
         // 이전 결과를 그대로 보여준다.
         if (
           data?.detail === '이미 종료된 기록입니다.' &&
-          (await tryShowActualResult(requestedRecordId, isStale))
+          (await tryShowActualResult(requestedRecordId, isStale, endAudio))
         ) {
           return;
         }
@@ -327,6 +401,7 @@ const RecordStart = () => {
       }
       const finished = await res.json();
       if (isStale()) return;
+      revealSound(endAudio);
       setResult(finished);
       setPhase('finished');
     } catch {
@@ -334,7 +409,7 @@ const RecordStart = () => {
       // 네트워크 에러(응답 자체를 못 받음)일 수 있어, 실제로 서버에 저장됐는지 다시
       // 확인한다 - 요청은 서버에 도달해 처리됐는데 응답만 유실된 경우 "저장 안 됨"으로
       // 잘못 안내하는 걸 방지하기 위함
-      if (await tryShowActualResult(requestedRecordId, isStale)) return;
+      if (await tryShowActualResult(requestedRecordId, isStale, endAudio)) return;
       if (isStale()) return;
       setError('서버에 연결할 수 없어요.');
       setPhase('end_failed');
@@ -362,6 +437,54 @@ const RecordStart = () => {
       </>
     );
   }
+
+  // 러닝 중 지도에 코스 시작/종료 지점을 표시한다 - CourseDetail.jsx와 동일한 로직
+  // (DRNB는 시작/종료 좌표만 있어 마커만, CUSTOM은 경유지가 있어 경로선까지)
+  const courseStartEndMarkers =
+    courseType === 'custom' && course.waypoints?.length > 0
+      ? [
+          { lat: course.waypoints[0].latitude, lng: course.waypoints[0].longitude, label: '시작' },
+          {
+            lat: course.waypoints.at(-1).latitude,
+            lng: course.waypoints.at(-1).longitude,
+            label: '종료',
+          },
+        ]
+      : courseType === 'drnb' && course.has_verification_coords
+        ? [
+            { lat: course.start_lat, lng: course.start_lng, label: '시작' },
+            { lat: course.end_lat, lng: course.end_lng, label: '종료' },
+          ]
+        : [];
+  const courseMapPath =
+    courseType === 'custom'
+      ? (course.waypoints ?? []).map((w) => ({ lat: w.latitude, lng: w.longitude }))
+      : [];
+  // 실시간 위치는 시작/종료 마커와 구분되게 다른 색(빨강)으로 표시한다
+  const liveMarkers = livePosition
+    ? [{ lat: livePosition.lat, lng: livePosition.lng, color: '#ed174c', size: 22, label: '내 위치' }]
+    : [];
+  const hasCourseMapData = courseStartEndMarkers.length > 0;
+  // KakaoMap의 autoFit(기본 true)을 그대로 두면, GPS가 갱신될 때마다(markers가
+  // 바뀔 때마다) 지도가 계속 재줌/재센터링되어 "튀는" 문제가 있었다(리뷰 지적) - 여기선
+  // 항상 끄고, 대신 map 생성 시 1회만 적용되는 initialCenter를 코스 시작점으로 줘서
+  // 처음 열릴 때 적어도 코스 근처를 보여주게 한다. (초기 렌더 시점에 "한 번만 맞추고
+  // 이후엔 끈다" 식의 ref 플래그를 시도했었는데, 지도 SDK가 비동기로 늦게 준비되는
+  // 반면 이 컴포넌트는 타이머로 매초 리렌더되어, 지도가 실제로 준비되기 전에 이미
+  // "1회 완료"로 플래그가 꺼져버려 초기 자동맞춤 자체가 무력화되는 버그가 있었다)
+  const initialMapCenter = hasCourseMapData
+    ? { lat: courseStartEndMarkers[0].lat, lng: courseStartEndMarkers[0].lng }
+    : undefined;
+  // 위치를 한 번도 못 받았는지, 받았다가 갱신이 끊겼는지에 따라 안내 문구를 구분한다 -
+  // locationLost만 보고 매번 "찾는 중"으로 고정 표시하면, 신호가 끊긴 뒤에도 마지막
+  // 좌표가 계속 현재 위치인 것처럼 보이는 문제가 있었다(리뷰 지적)
+  const locationHint = !livePosition
+    ? locationLost
+      ? '위치를 확인할 수 없어요'
+      : '내 위치를 찾는 중이에요...'
+    : locationLost
+      ? '위치를 갱신하지 못했어요 (마지막 확인 위치)'
+      : null;
 
   return (
     <>
@@ -417,6 +540,18 @@ const RecordStart = () => {
             <p className={phase === 'running' ? 'record-hint record-live' : 'record-hint'}>
               {phase === 'paused' ? '일시정지됨' : '러닝 중'}
             </p>
+            {hasCourseMapData && (
+              <KakaoMap
+                path={courseMapPath}
+                markers={[...courseStartEndMarkers, ...liveMarkers]}
+                height="280px"
+                autoFit={false}
+                initialCenter={initialMapCenter}
+              />
+            )}
+            {hasCourseMapData && locationHint && (phase === 'running' || phase === 'paused') && (
+              <p className="record-hint">{locationHint}</p>
+            )}
             <div className="record-actions">
               {phase === 'running' && (
                 <button
@@ -442,7 +577,14 @@ const RecordStart = () => {
                 onClick={handleEnd}
                 disabled={phase === 'ending'}
               >
-                {phase === 'ending' ? '종료 중...' : '러닝 종료'}
+                {phase === 'ending' ? (
+                  <>
+                    <span className="button-spinner" aria-hidden="true" />
+                    종료 중...
+                  </>
+                ) : (
+                  '러닝 종료'
+                )}
               </button>
             </div>
           </div>
@@ -451,9 +593,9 @@ const RecordStart = () => {
         {phase === 'end_failed' && (
           <div className="record-start-panel record-result">
             <div className="record-timer">{formatElapsed(elapsedSeconds)}</div>
-            <p className="record-hint">
-              {endFailedIsGps ? '위치 확인에 실패했어요. 기록은 계속 진행 중이에요.' : '기록이 저장되지 않았어요'}
-            </p>
+            {/* GPS 실패는 더 이상 여기로 오지 않는다(좌표 없이 종료 진행) - 이 화면은
+                실제 저장(네트워크/서버) 실패일 때만 보여진다 */}
+            <p className="record-hint">기록이 저장되지 않았어요</p>
             <div className="review-item-actions">
               <button type="button" className="primary-button record-end-button" onClick={handleEnd}>
                 다시 시도

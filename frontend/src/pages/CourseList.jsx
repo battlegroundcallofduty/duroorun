@@ -225,6 +225,11 @@ const CourseList = () => {
                 key={course.course_id}
                 course={course}
                 to={`/courses/${courseType}/${course.course_id}`}
+                // 커스텀 탭에서 들어간 코스는 "목록으로"가 다시 커스텀 탭으로 돌아오게
+                // ?type=custom을 넘긴다 - CourseList가 이미 이 쿼리로 시작 탭을 정하는
+                // 로직을 갖고 있어서(랜딩페이지 "커스텀 코스 TOP3" 링크용) 그대로 재사용.
+                // 두루누비는 /courses 기본값 자체가 두루누비 탭이라 안 건드려도 된다.
+                state={courseType === 'custom' ? { from: '/courses?type=custom' } : undefined}
                 badgeText={
                   courseType === 'drnb' ? (course.sigun ?? course.brd_div) : formatCustomSigunBadge(course)
                 }
