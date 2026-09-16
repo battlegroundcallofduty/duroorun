@@ -718,9 +718,11 @@ const CustomCourseForm = () => {
 
             <div className="course-form-actions">
               {/* '저장하기'가 저장 + 코스 상세로 이동을 함께 한다(팀 결정) - 별도 '코스
-                  상세 확인' 버튼은 더 이상 필요 없어 뺐다 */}
-              <button type="submit" className="primary-button" disabled={saving}>
-                {saving ? '저장 중...' : '저장하기'}
+                  상세 확인' 버튼은 더 이상 필요 없어 뺐다. 사진 업로드 중에는 막는다 -
+                  안 막으면 저장 성공 즉시 상세로 이동해버려서, 업로드가 아직 서버에 반영
+                  되기 전 스냅샷을 보게 돼 사진이 안 올라간 것처럼 보일 수 있다(리뷰 지적) */}
+              <button type="submit" className="primary-button" disabled={saving || uploadingImage}>
+                {saving ? '저장 중...' : uploadingImage ? '사진 업로드 중...' : '저장하기'}
               </button>
               {isEditMode && (
                 <button
