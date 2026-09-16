@@ -17,6 +17,9 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const REVIEW_PAGE_SIZE = 20;
 // 백엔드 검증 규칙과 동일 (app/config.py REVIEW_CONTENT_MAX_LENGTH)
 const REVIEW_CONTENT_MAX_LENGTH = 2000;
+// 백엔드 검증 규칙과 동일 (app/config.py REVIEW_IMAGE_MAX_COUNT) - 여러 장 선택 시
+// 서버 왕복 실패를 거치지 않고 미리 걸러주기 위한 사전 체크용(리뷰 지적)
+const REVIEW_IMAGE_MAX_COUNT = 5;
 
 const MyPage = () => {
   const navigate = useNavigate();
@@ -376,11 +379,27 @@ const MyPage = () => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
     setReviewActionError('');
+
+    // 이미 있는 이미지 + 이번에 고른 파일 수가 최대치를 넘으면, 넘는 만큼은 서버
+    // 왕복(실패 응답)까지 갈 필요 없이 여기서 바로 잘라낸다(리뷰 지적) - 매번 실패
+    // 요청을 보내고 나서야 알게 되는 것보다 선택 즉시 안내하는 게 낫다
+    const existingCount =
+      myReviewsRef.current.find((r) => r.review_id === reviewId)?.images?.length ?? 0;
+    const allowedCount = Math.max(0, REVIEW_IMAGE_MAX_COUNT - existingCount);
+    const filesToUpload = files.slice(0, allowedCount);
+    const overflowCount = files.length - filesToUpload.length;
+
+    if (filesToUpload.length === 0) {
+      setReviewActionError(`이미지는 최대 ${REVIEW_IMAGE_MAX_COUNT}장까지 업로드할 수 있어요.`);
+      event.target.value = '';
+      return;
+    }
+
     setUploadingImageReviewId(reviewId);
     let failureCount = 0;
     let lastErrorMessage = '';
     try {
-      for (const file of files) {
+      for (const file of filesToUpload) {
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -406,6 +425,10 @@ const MyPage = () => {
           failureCount += 1;
           lastErrorMessage = '서버에 연결할 수 없어요.';
         }
+      }
+      if (overflowCount > 0) {
+        failureCount += overflowCount;
+        lastErrorMessage = `이미지는 최대 ${REVIEW_IMAGE_MAX_COUNT}장까지 업로드할 수 있어요.`;
       }
       if (failureCount > 0) {
         setReviewActionError(
