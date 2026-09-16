@@ -554,27 +554,39 @@ const MyPage = () => {
                   // 기본값으로 둔다(리뷰 지적, RecordHistory.jsx와 동일)
                   (review.course_is_active ?? true) ? (
                     <li key={review.review_id} className="review-item">
-                      {/* 가독성 지적(리뷰) - 코스명/난이도/날짜를 한 줄로 합쳐서 메타정보를
-                          한눈에 훑을 수 있게 하고, 리뷰 내용은 분리된 줄에 문단으로 둔다 */}
-                      <div className="review-item-header">
-                        {/* 코스가 살아있으면 수정/삭제는 코스 상세에서 하므로 이동 링크만 제공 */}
-                        <Link
-                          className="text-button"
-                          to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
-                          onClick={() => setIsReviewOpen(false)}
-                        >
-                          {review.course_name}
-                        </Link>
-                        <span
-                          className={`review-difficulty-badge ${DIFFICULTY_COLOR[review.difficulty] ?? ''}`}
-                        >
-                          {DIFFICULTY_LABEL[review.difficulty]}
-                        </span>
-                        <span className="record-hint">
-                          {new Date(review.created_at).toLocaleDateString('ko-KR')}
-                        </span>
-                      </div>
-                      <p className="review-item-content">{review.content}</p>
+                      {/* 코스가 살아있으면 수정/삭제는 코스 상세에서 하므로, 카드 전체를
+                          눌러 그 코스로 바로 이동할 수 있게 한다(요청 반영) - 코스명만
+                          작은 링크였던 것보다 훨씬 누르기 쉽다 */}
+                      <Link
+                        className="review-item-link"
+                        to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
+                        onClick={() => setIsReviewOpen(false)}
+                      >
+                        {/* 가독성 지적(리뷰) - 코스명/난이도/날짜를 한 줄로 합쳐서 메타정보를
+                            한눈에 훑을 수 있게 하고, 리뷰 내용은 분리된 줄에 문단으로 둔다 */}
+                        <div className="review-item-header">
+                          <span className="text-button">{review.course_name}</span>
+                          <span
+                            className={`review-difficulty-badge ${DIFFICULTY_COLOR[review.difficulty] ?? ''}`}
+                          >
+                            {DIFFICULTY_LABEL[review.difficulty]}
+                          </span>
+                          <span className="record-hint">
+                            {new Date(review.created_at).toLocaleDateString('ko-KR')}
+                          </span>
+                        </div>
+                        <p className="review-item-content">{review.content}</p>
+                        {/* 이미지 등록/삭제는 코스 상세에서만 가능 - 여기서는 미리보기만 제공 */}
+                        {review.images?.length > 0 && (
+                          <div className="course-detail-images">
+                            {review.images.map((image) => (
+                              <div key={image.image_id} className="review-item-image">
+                                <img src={image.image_url} alt="리뷰 사진" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </Link>
                     </li>
                   ) : (
                     <li key={review.review_id} className="review-item">
@@ -594,6 +606,15 @@ const MyPage = () => {
                         </span>
                       </div>
                       <p className="review-item-content">{review.content}</p>
+                      {review.images?.length > 0 && (
+                        <div className="course-detail-images">
+                          {review.images.map((image) => (
+                            <div key={image.image_id} className="review-item-image">
+                              <img src={image.image_url} alt="리뷰 사진" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <button
                         type="button"
                         className="record-history-delete"
