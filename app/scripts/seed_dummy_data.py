@@ -201,7 +201,9 @@ async def _get_or_create_custom_course(session, users: dict[str, User], spec: di
         )
     if matches:
         course = matches[0]
-        logger.info("CUSTOM 코스 이미 존재, 재사용: %s (course_id=%s)", course_name, course.course_id)
+        logger.info(
+            "CUSTOM 코스 이미 존재, 재사용: %s (course_id=%s)", course_name, course.course_id
+        )
         return course
 
     response = await create_course(session, creator.user_id, spec["request"])
@@ -383,6 +385,8 @@ async def _log_real_ranking(session, course_type: CourseType, top_n: int = 5) ->
 if __name__ == "__main__":
     if sys.platform == "win32":
         # psycopg(async)가 Windows 기본 이벤트 루프(ProactorEventLoop)를 지원하지 않음
-        asyncio.run(seed(), loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector()))
+        asyncio.run(
+            seed(), loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
+        )
     else:
         asyncio.run(seed())
