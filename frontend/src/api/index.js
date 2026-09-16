@@ -1,7 +1,12 @@
 const REFRESH_ENDPOINT = '/v1/auth/refresh';
 
-// sessionStorage 사용 - 탭/창을 닫으면 삭제되어 재로그인 필요해짐
-// (refresh_token 쿠키도 세션 쿠키라 브라우저 완전 종료 시 같이 삭제됨)
+// 이전 버전에서 localStorage에 영구 저장했던 토큰 정리 (새 코드는 더 이상 안 씀)
+localStorage.removeItem('accessToken');
+
+// sessionStorage 사용 - 영구 저장 대신 세션 단위 저장으로 변경.
+// 탭 하나를 닫아도 다른 탭이 refresh_token 쿠키(탭 간 공유)로 로그인을 복구할 수 있어
+// "탭 닫기 = 로그아웃"은 아님. 브라우저 전체 종료 시 사라지는 게 일반적이지만,
+// 브라우저의 "이전 세션 복원" 설정에 따라 재실행 후에도 남아있을 수 있음(MDN).
 const getAccessToken = () => sessionStorage.getItem('accessToken');
 const setAccessToken = (token) => sessionStorage.setItem('accessToken', token);
 const clearAccessToken = () => sessionStorage.removeItem('accessToken');
