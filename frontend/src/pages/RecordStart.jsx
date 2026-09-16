@@ -166,8 +166,14 @@ const RecordStart = () => {
   // 러닝 중(running)일 때만 실시간 위치를 계속 추적해 지도에 표시한다 - 일시정지/종료
   // 중엔 꺼서 배터리를 아낀다. 위치 추적은 지도 표시용 부가 기능이라, 실패해도(권한
   // 거부 등) 타이머/일시정지/종료 같은 핵심 기록 기능에는 전혀 영향을 주지 않는다.
+  // 코스에 애초에 표시할 좌표(커스텀 경유지 또는 DRNB 시작/종료)가 없으면 지도 자체가
+  // 안 뜨는데, 그런 코스에서도 계속 GPS를 폴링하면 아무 효과 없이 배터리만 쓰게
+  // 된다(리뷰 지적) - 지도가 뜰 수 있는 코스일 때만 추적한다.
   useEffect(() => {
-    if (phase !== 'running' || !navigator.geolocation) return undefined;
+    const hasMapData =
+      (courseType === 'custom' && course?.waypoints?.length > 0) ||
+      (courseType === 'drnb' && course?.has_verification_coords);
+    if (phase !== 'running' || !navigator.geolocation || !hasMapData) return undefined;
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         setLivePosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
@@ -183,7 +189,7 @@ const RecordStart = () => {
         watchIdRef.current = null;
       }
     };
-  }, [phase]);
+  }, [phase, courseType, course]);
 
   const handleStart = async () => {
     // Safari/iOS(WebKit)는 play()가 유저 제스처 이벤트 핸들러의 동기 호출 스택
