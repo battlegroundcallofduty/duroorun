@@ -229,7 +229,7 @@ const UserProfile = () => {
                       id="force-withdraw-reason"
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
-                      placeholder="예: 욕설, 부적절한 리뷰 반복 작성"
+                      placeholder="예: 욕설, 부적절한 리뷰 작성"
                       maxLength={255}
                     />
                     {withdrawError && <p className="onboarding-error">{withdrawError}</p>}

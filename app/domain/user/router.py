@@ -25,6 +25,7 @@ from app.database import get_db
 from app.domain.user.models import User
 from app.domain.user.schemas import (
     CompleteSignupRequest,
+    DemoAdminLoginRequest,
     MessageResponse,
     ProfileImageResponse,
     PublicProfileResponse,
@@ -35,6 +36,7 @@ from app.domain.user.schemas import (
 from app.domain.user.service import (
     complete_signup,
     delete_profile_image,
+    demo_admin_login,
     get_google_auth_url,
     get_kakao_auth_url,
     get_naver_auth_url,
@@ -62,6 +64,10 @@ _RATE_LIMIT_WINDOW_SECONDS = 600
 # 공개 프로필 조회는 로그인 불필요라 IP 기준으로 별도 제한 (분당 30번까지)
 _PUBLIC_PROFILE_RATE_LIMIT_MAX_REQUESTS = 30
 _PUBLIC_PROFILE_RATE_LIMIT_WINDOW_SECONDS = 60
+
+# 관리자 체험 로그인 - 고정 비밀번호 무작위 대입 방지 목적으로 IP당 10분에 5번까지
+_DEMO_ADMIN_LOGIN_RATE_LIMIT_MAX_REQUESTS = 5
+_DEMO_ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 600
 
 
 def _set_refresh_token_cookie(response: Response, refresh_token: str) -> None:
@@ -273,6 +279,34 @@ async def token_refresh(
     _set_refresh_token_cookie(response, new_refresh_token)
 
     return TokenResponse(access_token=new_access_token, is_new_user=False)
+
+
+@router.post(
+    "/auth/demo-admin-login", response_model=TokenResponse, summary="관리자 체험 로그인 (임시)"
+)
+async def demo_admin_login_endpoint(
+    body: DemoAdminLoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> TokenResponse:
+    """공모전 심사위원용 - 고정 이메일/비밀번호로 미리 만들어둔 관리자 계정에 로그인합니다.
+
+    실제 회원가입이 아니라 .env 설정값과 대조하는 임시 기능. 로그인 전이라 유저별
+    제한을 걸 수 없으므로 IP 기준으로 제한한다 (공개 프로필 조회와 동일한 이유).
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_key = f"ratelimit:demo_admin_login:{client_ip}"
+    await check_rate_limit(redis, rate_limit_key, _DEMO_ADMIN_LOGIN_RATE_LIMIT_MAX_REQUESTS)
+    # 성공/실패 무관하게 먼저 카운트 - 그래야 무작위 대입 시도 자체가 한도에 걸림
+    await record_rate_limit_hit(redis, rate_limit_key, _DEMO_ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+
+    access_token, refresh_token = await demo_admin_login(body.email, body.password, db, redis)
+
+    _set_refresh_token_cookie(response, refresh_token)
+
+    return TokenResponse(access_token=access_token, is_new_user=False)
 
 
 @router.post("/auth/logout", response_model=MessageResponse, summary="로그아웃")
