@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import CourseCard from '../components/CourseCard';
@@ -97,6 +97,13 @@ const UserProfile = () => {
     };
   }, [userId]);
 
+  const isAdmin = viewer?.user_role === 'ADMIN';
+  const isSelf = viewer != null && String(viewer.user_id) === String(userId);
+  // profile이 아직 현재 userId 응답으로 안 바뀐 상태(이전 프로필 잔상)에서는 강제 탈퇴를 막음
+  const isProfileForCurrentUser = profile != null && String(profile.user_id) === String(userId);
+  const canForceWithdraw =
+    isAdmin && !isSelf && isProfileForCurrentUser && profile.user_role !== 'ADMIN';
+
   // 프로필 조회가 끝나고 실존하는 유저일 때만 코스 목록을 요청
   const path = !loading && !notFound && !error ? '/v1/courses/custom' : null;
   const buildQuery = (targetPage, size = PAGE_SIZE) =>
@@ -111,12 +118,48 @@ const UserProfile = () => {
     loadMore,
   } = usePaginatedCourses(path, buildQuery, [userId, loading, notFound, error]);
 
-  const isAdmin = viewer?.user_role === 'ADMIN';
-  const isSelf = viewer != null && String(viewer.user_id) === String(userId);
-  // profile이 아직 현재 userId 응답으로 안 바뀐 상태(이전 프로필 잔상)에서는 강제 탈퇴를 막음
-  const isProfileForCurrentUser = profile != null && String(profile.user_id) === String(userId);
-  const canForceWithdraw =
-    isAdmin && !isSelf && isProfileForCurrentUser && profile.user_role !== 'ADMIN';
+  // 관리자가 보고 있을 때만 - 이 유저가 작성한 리뷰 목록 (부적절한 리뷰 삭제용)
+  const reviewsPath =
+    isAdmin && !loading && !notFound && !error ? `/v1/admin/users/${userId}/reviews` : null;
+  const reviewsBuildQuery = (targetPage, size = PAGE_SIZE) => `page=${targetPage}&size=${size}`;
+  const {
+    courses: reviews,
+    total: reviewsTotal,
+    loading: reviewsLoading,
+    loadingMore: reviewsLoadingMore,
+    error: reviewsError,
+    loadMoreError: reviewsLoadMoreError,
+    loadMore: loadMoreReviews,
+    reload: reloadReviews,
+  } = usePaginatedCourses(reviewsPath, reviewsBuildQuery, [userId, isAdmin, loading, notFound, error]);
+
+  const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [deleteReviewError, setDeleteReviewError] = useState('');
+
+  const handleDeleteReview = async (review) => {
+    // 다른 리뷰 삭제가 진행 중이면 무시 - 동시 삭제 시 deletingReviewId가 서로 덮어써서
+    // 아직 처리 중인 요청의 버튼이 풀려버리는 걸 막기 위해 한 번에 하나만 처리(리뷰 지적)
+    if (deletingReviewId != null) return;
+    if (!window.confirm('이 리뷰를 삭제할까요? 되돌릴 수 없어요.')) return;
+    setDeletingReviewId(review.review_id);
+    setDeleteReviewError('');
+    try {
+      const res = await apiFetch(`/v1/reviews/${review.review_id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setDeleteReviewError('리뷰 삭제에 실패했어요.');
+        return;
+      }
+      const reloaded = await reloadReviews();
+      if (!reloaded) {
+        setDeleteReviewError('삭제는 됐지만 목록을 새로고침하지 못했어요. 새로고침 해주세요.');
+      }
+    } catch (err) {
+      console.error('리뷰 삭제 실패:', err);
+      setDeleteReviewError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setDeletingReviewId(null);
+    }
+  };
 
   const handleForceWithdraw = async (event) => {
     event.preventDefault();
@@ -232,6 +275,67 @@ const UserProfile = () => {
                 </div>
               )}
             </section>
+
+            {isAdmin && (
+              <section className="admin-section">
+                <h2>작성한 리뷰 ({reviewsTotal}건)</h2>
+                <p className="admin-section-hint">부적절한 리뷰를 관리자 권한으로 삭제할 수 있어요.</p>
+                {deleteReviewError && <p className="course-list-status error">{deleteReviewError}</p>}
+                {reviewsLoading && <p className="course-list-status">불러오는 중...</p>}
+                {reviewsError && <p className="course-list-status error">{reviewsError}</p>}
+                {!reviewsLoading && !reviewsError && reviews.length === 0 && (
+                  <p className="course-list-status">작성한 리뷰가 없어요.</p>
+                )}
+                {!reviewsLoading && !reviewsError && reviews.length > 0 && (
+                  <ul className="admin-banned-list">
+                    {reviews.map((review) => (
+                      <li key={review.review_id} className="admin-banned-item">
+                        <div>
+                          {/* 코스가 비활성화(삭제)되면 상세 API가 404라 링크를 걸면 안 됨
+                              (MyPage.jsx의 "내가 쓴 리뷰"와 동일한 처리, 리뷰 지적) */}
+                          {(review.course_is_active ?? true) ? (
+                            <Link
+                              to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
+                            >
+                              {review.course_name}
+                            </Link>
+                          ) : (
+                            <span aria-disabled="true">{review.course_name} (삭제된 코스)</span>
+                          )}
+                          <span>{review.content}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="admin-unban-button"
+                          onClick={() => handleDeleteReview(review)}
+                          disabled={deletingReviewId != null}
+                        >
+                          {deletingReviewId === review.review_id ? '처리 중...' : '삭제'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!reviewsLoading && !reviewsError && reviews.length < reviewsTotal && (
+                  <div className="course-list-load-more">
+                    {reviewsLoadMoreError && (
+                      <p className="course-list-status error">{reviewsLoadMoreError}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={loadMoreReviews}
+                      disabled={reviewsLoadingMore || deletingReviewId != null}
+                    >
+                      {reviewsLoadingMore
+                        ? '불러오는 중...'
+                        : reviewsLoadMoreError
+                          ? '다시 시도'
+                          : '더보기'}
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
       </main>

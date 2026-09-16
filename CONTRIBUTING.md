@@ -67,7 +67,7 @@ raise HTTPException(status_code=404, detail="코스를 찾을 수 없습니다."
 
 ```python
 REVIEW_IMAGE_MAX_COUNT = 5       # 리뷰 이미지 최대 장수
-REVIEW_IMAGE_MAX_SIZE_MB = 2     # 리뷰 이미지 장당 최대 용량(MB)
+REVIEW_IMAGE_MAX_SIZE_MB = 5     # 리뷰 이미지 장당 최대 용량(MB)
 COURSE_IMAGE_MAX_COUNT = 3       # 커스텀 코스 이미지 최대 장수
 COURSE_IMAGE_MAX_SIZE_MB = 5     # 커스텀 코스 이미지 장당 최대 용량(MB)
 COMPLETION_RADIUS_M = 300        # 완주 인증 허용 반경(m)

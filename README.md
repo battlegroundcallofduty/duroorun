@@ -16,13 +16,19 @@
 
 ---
 
+## 관광 데이터 활용 승인
+
+두루누비 코스 데이터를 실시간 호출이 아닌 로컬 DB 저장 방식으로 활용하기 위해 한국관광공사에 별도 승인을 신청해 승인받았습니다 (2026-08-21 승인 완료). 신청서 및 승인 메일 원본은 [`docs/`](./docs/) 폴더 참고.
+
+---
+
 ## 기술 스택
 
 ### 백엔드
 - **Framework**: FastAPI (Python 3.11)
 - **Database**: PostgreSQL 16, SQLAlchemy 2.x async + Alembic
-- **Cache**: Redis (두루누비 API 캐싱 / JWT 블랙리스트)
-- **Auth**: JWT (소셜 로그인 전용 — Google / Kakao / Naver). Access Token(30분, localStorage) + Refresh Token(14일, httpOnly 쿠키)
+- **Cache**: Redis (JWT 블랙리스트/Refresh Token, OAuth state, AI 날씨·안전 브리핑 캐싱, rate limit)
+- **Auth**: JWT (소셜 로그인 전용 — Google / Kakao / Naver). Access Token(30분, sessionStorage — 브라우저 종료 시 로그아웃) + Refresh Token(14일, httpOnly 쿠키)
 - **Storage**: Cloudflare R2
 - **AI**: Gemini API (AI 리뷰 요약 — 리뷰 3개 이상 코스)
 - **Infra**: Docker, AWS EC2, GitHub Actions (CI/CD)
@@ -112,7 +118,7 @@ export default defineConfig({
 ```javascript
 // src/api/index.js (예시)
 const apiFetch = async (url, options = {}) => {
-  const accessToken = localStorage.getItem('accessToken');
+  const accessToken = sessionStorage.getItem('accessToken');
   return fetch(`/api${url}`, {
     ...options,
     credentials: 'include', // Refresh 쿠키 전송 필수
@@ -176,8 +182,18 @@ docker compose up --build
 
 최초 1회 두루누비 API에서 코스 데이터를 가져와 DB에 저장합니다. 두루누비 API 응답에는 시작/종료 좌표 필드가 없으므로, 시드 스크립트가 `gpxpath`(GPX xml URL)를 다운로드·파싱하여 첫/마지막 포인트를 시작/종료 좌표로 추출해 `courses.start_lat/lng`, `end_lat/lng`에 저장합니다. (이 좌표는 완주 인증 검증의 기준점으로 사용)
 
+로컬 DB 저장 방식은 한국관광공사 승인을 받은 방식입니다 (`docs/` 폴더의 신청서/승인 메일 참고). 운영 서버에서는 최초 1회 수동 실행 이후, `app/scheduler.py`가 매일 08:00에 자동으로 재실행해 데이터를 최신화합니다(실패 시 최대 3회 재시도 + 디스코드 알림).
+
 ```bash
 python -m app.scripts.seed_courses
+```
+
+### 공모전 데모용 더미 데이터 등록
+
+`seed_dummy_data.py`는 심사/데모를 위해 기존 유저 계정에 러닝 기록·리뷰 등을 채워 넣는 스크립트입니다. **DB에 미리 정해진 닉네임(바나낭우유 등)으로 소셜 로그인한 유저가 존재해야 동작**합니다(신규 유저를 생성하지는 않음).
+
+```bash
+python -m app.scripts.seed_dummy_data
 ```
 
 ### 모델/DB 스키마가 바뀐 직후 pull 받았을 때
@@ -269,10 +285,11 @@ app/
 │       └── service.py
 ├── clients/
 │   ├── r2.py                # Cloudflare R2 파일 업로드/삭제
-│   ├── durunubi.py          # 두루누비 API 연동 + Redis 캐싱
+│   ├── durunubi.py          # 두루누비 API 연동 (캐싱 없이 시드 스크립트가 배치 호출)
 │   └── gemini.py            # Gemini API 연동 (리뷰 요약 생성)
 └── scripts/
-    └── seed_courses.py      # 두루누비 코스 시드 스크립트
+    ├── seed_courses.py      # 두루누비 코스 시드 스크립트 (스케줄러가 매일 08:00 자동 실행)
+    └── seed_dummy_data.py   # 공모전 데모용 더미 데이터 시딩 스크립트
 
 frontend/                    # 프론트엔드 (React + Vite)
 ├── public/
@@ -447,7 +464,7 @@ git restore --staged app/config.py
 ---
 
 - `.env` 절대 커밋 금지 (`.gitignore`에 포함). `.env.example`로 필요한 변수 목록만 공유
-- JWT: Access Token(30분, localStorage) + Refresh Token(14일, httpOnly 쿠키). Refresh는 유저당 1개 저장(Redis `refresh:{user_id}`), 재발급 시 토큰 로테이션
+- JWT: Access Token(30분, sessionStorage) + Refresh Token(14일, httpOnly 쿠키). Refresh는 유저당 1개 저장(Redis `refresh:{user_id}`), 재발급 시 토큰 로테이션
 - 로그아웃/탈퇴 시 Access는 Redis 블랙리스트(`blacklist:{access_jti}`) 등록, Refresh는 Redis에서 삭제
 - Refresh 쿠키는 `/api/v1/auth/refresh` 경로 한정. `samesite=lax`는 로컬/프로덕션 공통, `secure`만 환경 분기(로컬 `False`, 프로덕션 `True`) — 프론트/API가 완전히 같은 도메인이라 `lax`로 충분함
 - CORS 허용 주소 명시 (`*` 사용 금지, 우리 프론트 주소만 허용). httpOnly 쿠키 사용으로 `allow_credentials=True` 필수, 프론트는 `credentials: 'include'`
