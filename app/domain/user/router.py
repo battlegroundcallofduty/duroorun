@@ -65,14 +65,18 @@ _PUBLIC_PROFILE_RATE_LIMIT_WINDOW_SECONDS = 60
 
 
 def _set_refresh_token_cookie(response: Response, refresh_token: str) -> None:
-    """Refresh Token httpOnly 쿠키를 설정합니다 (로그인 성공/재발급/가입완료 3곳에서 공용)."""
+    """Refresh Token httpOnly 쿠키를 설정합니다 (로그인 성공/재발급/가입완료 3곳에서 공용).
+
+    max_age를 주지 않아 세션 쿠키로 발급됨 - 브라우저를 완전히 종료하면 삭제되어
+    재로그인이 필요해짐. 토큰 자체의 만료(JWT exp, Redis TTL)는
+    REFRESH_TOKEN_EXPIRE_DAYS 그대로 유지 - 브라우저를 계속 켜두는 경우의 안전장치.
+    """
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=settings.is_production,
         samesite="lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path=_REFRESH_COOKIE_PATH,
         domain=settings.COOKIE_DOMAIN or None,
     )

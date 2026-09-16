@@ -1,8 +1,10 @@
 const REFRESH_ENDPOINT = '/v1/auth/refresh';
 
-const getAccessToken = () => localStorage.getItem('accessToken');
-const setAccessToken = (token) => localStorage.setItem('accessToken', token);
-const clearAccessToken = () => localStorage.removeItem('accessToken');
+// sessionStorage 사용 - 탭/창을 닫으면 삭제되어 재로그인 필요해짐
+// (refresh_token 쿠키도 세션 쿠키라 브라우저 완전 종료 시 같이 삭제됨)
+const getAccessToken = () => sessionStorage.getItem('accessToken');
+const setAccessToken = (token) => sessionStorage.setItem('accessToken', token);
+const clearAccessToken = () => sessionStorage.removeItem('accessToken');
 
 const buildRequest = (options, accessToken) => ({
   ...options,
