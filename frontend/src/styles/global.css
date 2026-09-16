@@ -402,9 +402,15 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
 .record-heading { margin:18px 0 28px; }
 .record-heading h1 { font-size:32px; letter-spacing:-1.5px; margin:8px 0 0; }
 .record-start-panel { display:flex; flex-direction:column; align-items:center; gap:18px; padding:40px 24px; border:1px solid #e1e7e2; border-radius:16px; text-align:center; }
+/* record-start-panel이 align-items:center라 자식이 콘텐츠 너비로 줄어드는데,
+   kakao-map은 width:100%라 기준 삼을 너비가 없어 0으로 접혀 안 보였다 - 이 안에서만
+   지도 래퍼가 패널 너비를 그대로 차지하도록 편다(러닝 중 실시간 위치 지도) */
+.record-start-panel .kakao-map-wrapper { align-self:stretch; }
 .record-hint { color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; margin:0; }
 .record-live { color:var(--red); animation:record-blink 1s step-start infinite; }
 @keyframes record-blink { 50% { opacity:0; } }
+.button-spinner { display:inline-block; width:14px; height:14px; margin-right:8px; vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:button-spin .7s linear infinite; }
+@keyframes button-spin { to { transform:rotate(360deg); } }
 .record-timer { font-size:56px; font-weight:700; letter-spacing:-1px; color:var(--ink); font-variant-numeric:tabular-nums; }
 .record-actions { display:flex; align-items:center; gap:20px; }
 .record-start-button, .record-end-button { border:0; border-radius:8px; cursor:pointer; padding:14px 28px; font-size:15px; }
