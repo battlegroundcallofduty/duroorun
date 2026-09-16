@@ -230,11 +230,16 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .modal-overlay { position:fixed; inset:0; background:rgba(16,42,43,.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:24px; }
 .modal-image { max-width:min(90vw,480px); max-height:80vh; border-radius:12px; object-fit:contain; }
 .modal-close { position:absolute; top:24px; right:24px; width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,.15); color:#fff; font-size:22px; cursor:pointer; }
-.review-modal-card { position:relative; width:100%; max-width:360px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; }
+/* 리뷰 내용이 길면 좁은 폭(360px) 때문에 줄바꿈이 많아져 세로로 길게 늘어져
+   가독성이 떨어졌다 - 다른 콘텐츠 위주 모달(weather-modal-card 등)만큼 넓힌다 */
+.review-modal-card { position:relative; width:100%; max-width:800px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; }
 .review-modal-card h2 { font-size:18px; margin:0 0 10px; }
 .review-modal-card > p { color:#5c706c; font-size:14px; margin:0; }
 .review-modal-card .review-list { margin-top:16px; }
 .review-modal-card .review-item { text-align:left; }
+/* 코스명/난이도/날짜를 review-item-header 한 줄에 같이 두므로, 그 안의 코스명
+   링크에는 다른 형제 요소(뱃지)와 나란히 붙도록 별도 margin을 주지 않는다 */
+.review-modal-card .review-item-header .text-button { padding-bottom:0; border-bottom:0; }
 .review-modal-close { position:static; margin:0 0 12px auto; display:block; background:#f1f1ee; color:var(--ink); }
 .weather-modal-card { position:relative; width:100%; max-width:420px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:left; font-family:'Apple SD Gothic Neo',sans-serif; }
 .weather-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; }
@@ -308,8 +313,11 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .course-detail-images img { width:160px; height:120px; object-fit:cover; border-radius:8px; }
 
 /* .text-button는 <a> 기준으로 만들어져 있어서, <button>에 그대로 쓰면 브라우저 기본
-   테두리/배경이 남아 박스처럼 보인다 - <button class="text-button">에서만 그걸 지운다 */
-button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; }
+   테두리/배경이 남아 박스처럼 보인다 - <button class="text-button">에서만 그걸 지운다.
+   <a>는 브라우저가 기본으로 손모양 커서를 보여주지만 <button>은 기본이 화살표라, 다른
+   버튼(.weather-briefing-button 등)과 동일한 클릭 느낌이 나도록 커서도 맞춰준다 */
+button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; }
+button.text-button:disabled { cursor:not-allowed; }
 
 /* 코스 상세 - 리뷰 (목록/작성/수정/삭제) */
 .review-summary-box { margin:24px 0; padding:20px; background:var(--cream); border-radius:10px; }
@@ -345,7 +353,7 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 .review-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px; }
 .review-load-more { display:block; margin:18px auto 0; }
 .review-item { padding:18px 20px; border:1px solid #e1e7e2; border-radius:10px; }
-.review-item-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.review-item-header { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-bottom:8px; }
 .review-author-link { margin-left:auto; font-size:12px; }
 .review-item-content { margin:0; color:#3d524f; font-family:'Apple SD Gothic Neo',sans-serif; font-size:17px; line-height:1.7; white-space:pre-wrap; }
 .review-difficulty-badge { font-size:13px; font-weight:700; padding:5px 12px; border-radius:14px; color:#fff; }
@@ -385,6 +393,8 @@ button.text-button { background:transparent; border:0; border-radius:0; padding:
 .record-history-stats { display:flex; align-items:center; gap:16px; color:#5c706c; font-family:'Apple SD Gothic Neo',sans-serif; font-size:13px; }
 .record-badge { color:#82928e; font-size:12px; padding:4px 10px; border-radius:12px; background:#f1f1ee; }
 .record-badge.success { color:var(--green); background:#e3f6e9; }
+.record-history-actions { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.record-history-review-link { font-size:12px; font-weight:600; text-decoration:none; }
 .record-history-delete { background:none; border:0; padding:4px 8px; font-size:12px; color:var(--red); font-weight:600; cursor:pointer; }
 .record-history-delete:disabled { opacity:.6; cursor:not-allowed; }
 

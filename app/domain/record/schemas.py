@@ -56,6 +56,9 @@ class MyRecordResponse(BaseModel):
     # 다른 코스에서 진행 중인 기록을 안내할 때, 프론트가 그 기록 화면 URL
     # (/records/start/{course_type}/{course_id})을 만들 수 있도록 포함
     course_type: CourseType
+    # 완주한 기록이어도 그 이후 코스가 비활성화되면 코스 상세 API가 404를 반환한다 -
+    # 프론트가 "리뷰 보기·작성" 링크를 걸지 말지 판단할 수 있도록 포함(리뷰 지적)
+    course_is_active: bool
     duration_seconds: int | None
     started_at: datetime
     ended_at: datetime | None
