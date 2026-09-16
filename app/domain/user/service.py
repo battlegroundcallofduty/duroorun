@@ -35,7 +35,7 @@ from app.domain.course.models import Course, CourseImage, CourseType, CourseWayp
 from app.domain.facility.models import CourseFacility
 from app.domain.record.models import Record
 from app.domain.review.models import Review, ReviewImage, ReviewSummary
-from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User
+from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -615,11 +615,15 @@ async def complete_signup(
         await _check_not_banned(provider_type, provider_uid, db)
 
         try:
+            # 공모전 심사 편의를 위한 임시 조치 - 구글로 가입하면 자동 관리자 승격.
+            # 공모전 끝나면 반드시 제거할 것 (도희 확인, 2026-09-17).
+            user_role = UserRole.ADMIN if provider_type == ProviderType.GOOGLE else UserRole.USER
             user = User(
                 name=name,
                 nickname=nickname,
                 location=location,
                 terms_agreed_at=datetime.now(UTC),
+                user_role=user_role,
             )
             db.add(user)
             await db.flush()
