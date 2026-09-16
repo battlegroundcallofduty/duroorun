@@ -2,7 +2,7 @@
 @font-face { font-family: 'Gangwon'; src: url('/fonts/GANGWONSTATE-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
 @font-face { font-family: 'Pretendard'; src: url('/fonts/Pretendard-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Pretendard'; src: url('/fonts/Pretendard-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
-:root { --green:#0db14b; --blue:#005baa; --red:#ed174c; --gray:#77787b; --ink:#102a2b; --cream:#f6f4ec; }
+:root { --green:#0db14b; --blue:#005baa; --red:#ed174c; --gray:#77787b; --ink:#102a2b; --cream:#f6f4ec; --bottom-tab-bar-h:70px; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:#fff; color:var(--ink); font-family:'Gangwon','Pretendard','Apple SD Gothic Neo',sans-serif; }
@@ -17,6 +17,7 @@ nav { display:flex; gap:42px; font-size:15px; color:#264748; }
 nav a { position:relative; }
 nav a.active:after { content:''; position:absolute; height:2px; background:var(--green); left:0; right:0; bottom:-9px; }
 .header-actions { display:flex; gap:10px; align-items:center; }
+.bottom-tab-bar { display:none; }
 .login-button { border:1px solid #b7c3bd; border-radius:22px; background:rgba(255,255,255,.65); padding:10px 21px; color:var(--ink); cursor:pointer; }
 .hero { min-height:720px; background:linear-gradient(105deg,#f8f6ef 0%,#f2f6ed 48%,#dfece7 100%); display:grid; grid-template-columns:52% 48%; position:relative; overflow:hidden; padding-top:84px; }
 .hero-copy { padding:110px 30px 50px clamp(28px,8vw,124px); position:relative; z-index:3; }
@@ -30,6 +31,11 @@ h1 em { font-style:normal; color:var(--blue); }
 .primary-button { background:var(--green); color:white; padding:16px 22px; border-radius:4px; box-shadow:0 8px 20px rgba(13,177,75,.18); }
 .primary-button.danger-button { background:var(--red); box-shadow:none; }
 .primary-button span { margin-left:25px; }
+/* .primary-button도 <a>(Link)뿐 아니라 <button>(리뷰 등록 등)으로도 쓰이는데, 이 기본
+   규칙엔 cursor가 없어서 일부 컨텍스트(review-form 등)는 화살표 커서로 남아있었다 -
+   여기서 한 번에 맞춰준다 (다른 곳에서 이미 개별로 cursor:pointer 준 곳은 중복이라도 무해) */
+button.primary-button { cursor:pointer; }
+button.primary-button:disabled { cursor:not-allowed; }
 .text-button { color:#345452; font-size:14px; border-bottom:1px solid #9cafaa; padding-bottom:5px; }
 .text-button span { margin-left:8px; color:var(--blue); }
 .quick-stats { display:flex; gap:34px; margin-top:58px; }
@@ -85,8 +91,8 @@ h2 { font-size:36px; letter-spacing:-1.5px; margin:8px 0 0; line-height:1.25; }
 .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 .steps div { border-top:1px solid #50706d; padding-top:18px; display:flex; flex-direction:column; }
 .steps b { color:#6edc95; font-size:12px; }.steps strong { margin:25px 0 8px; font-size:18px; }.steps span { color:#9fb3af; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:12px; line-height:1.6; }
-@media (max-width:900px) { nav { display:none; }.hero { grid-template-columns:1fr; }.hero-copy { padding-top:75px; }.hero-visual { min-height:500px; }.course-grid { grid-template-columns:1fr; }.how { grid-template-columns:1fr; }.steps { gap:10px; } }
-@media (max-width:560px) { .site-header { height:70px; }.hero { padding-top:70px; }.hero-copy { padding:62px 22px 30px; }.hero-copy>p br { display:none; }h1 { font-size:47px; letter-spacing:-3px; }.hero-buttons { align-items:flex-start; flex-direction:column; }.quick-stats { gap:13px; }.quick-stats div { padding-right:13px; }.quick-stats strong { font-size:17px; }.hero-visual { min-height:410px; }.crane { width:75%; }.crane-message { top:9%; }.location-pill { left:18px; }.discovery { padding:65px 22px; }.section-heading { align-items:flex-start; gap:20px; }.section-heading>a { white-space:nowrap; }.steps { grid-template-columns:1fr; }.steps div { display:grid; grid-template-columns:35px 100px 1fr; align-items:center; }.steps strong { margin:15px 0; } }
+@media (max-width:900px) { body { padding-bottom:calc(var(--bottom-tab-bar-h) + env(safe-area-inset-bottom,0px)); }.site-header nav { display:none; }.bottom-tab-bar { display:flex; height:calc(var(--bottom-tab-bar-h) + env(safe-area-inset-bottom,0px)); position:fixed; left:0; right:0; bottom:0; z-index:20; background:#fff; border-top:1px solid #e7ece9; padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); box-shadow:0 -6px 18px rgba(16,42,43,.08); }.bottom-tab-bar a { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; color:#8a9995; font-size:11px; }.bottom-tab-bar a.active { color:var(--green); }.bottom-tab-icon { width:26px; height:26px; opacity:.55; }.bottom-tab-bar a.active .bottom-tab-icon { opacity:1; }.bottom-tab-icon img { width:100%; height:100%; object-fit:contain; }.hero { grid-template-columns:1fr; }.hero-copy { padding-top:75px; }.hero-visual { min-height:500px; }.course-grid { grid-template-columns:1fr; }.popular-course-grid { display:flex; grid-template-columns:none; overflow-x:auto; gap:12px; padding-bottom:8px; scroll-snap-type:x proximity; scrollbar-width:thin; }.popular-course-grid .course-card-wrapper { flex:0 0 76%; scroll-snap-align:start; }.how { grid-template-columns:1fr; }.steps { gap:10px; } }
+@media (max-width:560px) { .site-header { height:70px; }.hero { padding-top:70px; }.hero-copy { padding:62px 22px 30px; }.hero-copy>p br { display:none; }.home-page h1 { font-size:34px; letter-spacing:-1.5px; }.home-page h2 { font-size:26px; letter-spacing:-1px; }.eyebrow { font-size:12px; }.hero-copy>p { font-size:14px; }.hero-buttons { align-items:flex-start; flex-direction:column; }.quick-stats { gap:13px; }.quick-stats div { padding-right:13px; }.quick-stats strong { font-size:17px; }.hero-visual { min-height:410px; }.crane { width:75%; }.crane-message { top:9%; }.location-pill { left:18px; }.discovery { padding:65px 22px; }.section-heading { align-items:flex-start; gap:20px; }.section-heading>a { white-space:nowrap; }.steps { grid-template-columns:1fr; }.steps div { display:grid; grid-template-columns:35px 100px 1fr; align-items:center; }.steps strong { margin:15px 0; }.how h2 { font-size:28px; } }
 
 /* 모바일 앱 홈 시안 */
 .app-preview-page { min-height:100vh; background:linear-gradient(135deg,#e7f0ea,#d4e5e0); display:flex; justify-content:center; align-items:flex-start; gap:90px; padding:42px 30px; color:var(--ink); }
@@ -325,6 +331,10 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
    버튼(.weather-briefing-button 등)과 동일한 클릭 느낌이 나도록 커서도 맞춰준다 */
 button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; }
 button.text-button:disabled { cursor:not-allowed; }
+/* "이미지 추가"처럼 숨긴 파일 input을 감싸는 <label>도 버튼과 똑같이 커서가 기본값이라
+   손모양이 안 떴다 - 동일하게 맞춘다 */
+label.text-button { cursor:pointer; }
+label.text-button:has(input:disabled) { cursor:not-allowed; }
 
 /* 코스 상세 - 리뷰 (목록/작성/수정/삭제) */
 .review-summary-box { margin:24px 0; padding:20px; background:var(--cream); border-radius:10px; }
@@ -361,6 +371,9 @@ button.text-button:disabled { cursor:not-allowed; }
 .review-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px; }
 .review-load-more { display:block; margin:18px auto 0; }
 .review-item { padding:18px 20px; border:1px solid #e1e7e2; border-radius:10px; }
+/* 카드 전체를 눌러 코스로 이동하는 링크 - <a>는 기본이 inline이라 block으로 바꿔서
+   header/content/이미지가 기존과 동일하게 세로로 쌓이는 레이아웃을 유지한다 */
+.review-item-link { display:block; }
 .review-item-header { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-bottom:8px; }
 .review-author-link { margin-left:auto; font-size:12px; }
 .review-item-content { margin:0; color:#3d524f; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:17px; line-height:1.7; white-space:pre-wrap; }
@@ -370,7 +383,7 @@ button.text-button:disabled { cursor:not-allowed; }
 .review-difficulty-badge.red { background:var(--red); }
 .review-item-actions { display:flex; align-items:center; gap:16px; margin-top:12px; }
 .review-item-image { position:relative; display:inline-block; }
-.review-item-image img { width:120px; height:90px; object-fit:cover; border-radius:8px; }
+.review-item-image img { width:200px; height:150px; object-fit:cover; border-radius:8px; }
 .review-item-image button { position:absolute; top:4px; right:4px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(16,42,43,.7); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; }
 
 /* 러닝 기록 시작/진행 */
