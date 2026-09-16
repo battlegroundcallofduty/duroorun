@@ -186,6 +186,13 @@ const RecordStart = () => {
   }, [phase]);
 
   const handleStart = async () => {
+    // Safari/iOS(WebKit)는 play()가 유저 제스처 이벤트 핸들러의 동기 호출 스택
+    // 안에 있어야만 자동재생 정책에서 허용한다 - await를 하나라도 거치면 더 이상
+    // "유저가 트리거한 재생"으로 인정하지 않고 막아버린다(Chromium은 더 관대해서
+    // 지금까지 안 드러났을 뿐). 그래서 아래 await들보다 반드시 먼저, 동기 구간에서
+    // 호출한다 - 성공/실패와 무관하게 클릭 즉시 소리가 나는 트레이드오프는 감수한다
+    // (리뷰 지적)
+    playSound('/assets/start.mp3');
     // GPS 응답을 기다리는 동안(최대 10초) 다른 코스 화면으로 이동했을 수 있다 - 같은
     // 컴포넌트가 재사용되므로, 그 사이 이동했다면 지금 보고 있는 화면을 이 요청의
     // 결과로 건드리지 않는다 (요청 자체도 더 이상 보낼 필요가 없어 취소한다)
@@ -229,7 +236,6 @@ const RecordStart = () => {
       setRecord(data);
       setElapsedSeconds(0);
       setPhase('running');
-      playSound('/assets/start.mp3');
     } catch {
       if (!isStale()) {
         setError('서버에 연결할 수 없어요.');
@@ -306,6 +312,9 @@ const RecordStart = () => {
   };
 
   const handleEnd = async () => {
+    // handleStart와 동일한 이유(WebKit 자동재생 정책) - await보다 먼저, 동기 구간에서
+    // 호출한다(리뷰 지적)
+    playSound('/assets/end.mp3');
     // handlePause/handleResume와 동일하게, 응답을 기다리는 사이 다른 코스로 이동했을 수
     // 있다(같은 컴포넌트가 재사용되므로) - 그러면 지금 보고 있는 화면을 이 요청의 결과로
     // 건드리지 않는다. record는 비동기 처리 중 바뀔 수 있으니 시작 시점 값을 캡처해둔다.
@@ -358,7 +367,6 @@ const RecordStart = () => {
       if (isStale()) return;
       setResult(finished);
       setPhase('finished');
-      playSound('/assets/end.mp3');
     } catch {
       if (isStale()) return;
       // 네트워크 에러(응답 자체를 못 받음)일 수 있어, 실제로 서버에 저장됐는지 다시
