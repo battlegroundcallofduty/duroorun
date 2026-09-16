@@ -11,7 +11,7 @@ const COURSE_TYPE_LABEL = { DRNB: '공식', CUSTOM: '커스텀' };
 // /courses 목록 페이지와 동일한 CourseCard를 그대로 써서 카드 모양을 통일하고,
 // 랭킹 숫자만 actions 슬롯으로 얹는다(CourseCard 자체는 안 건드림).
 const PopularCourseGrid = ({ courses }) => (
-  <div className="course-grid">
+  <div className="course-grid popular-course-grid">
     {courses.map((course, index) => (
       <CourseCard
         key={course.course_id}
@@ -89,7 +89,7 @@ export default function Home() {
   }, [topCourse]);
 
   return (
-    <main>
+    <main className="home-page">
       <Header />
 
       <section className="hero" id="top">
