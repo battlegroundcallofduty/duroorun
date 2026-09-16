@@ -5,6 +5,7 @@ import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
 import KakaoMap from '../components/map/KakaoMap';
 import { useUser } from '../contexts/UserContext';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { loadGangwonBoundary } from '../lib/gangwonBoundary';
 import { loadKakaoMaps } from '../lib/kakaoMaps';
 import { isPointInPolygon } from '../lib/pointInPolygon';
@@ -137,6 +138,7 @@ const CustomCourseForm = () => {
   const [notice, setNotice] = useState('');
   // 신규 생성 저장 직후에만 씀: 완료 모달에서 "사진 추가"/"나만의 코스로 이동" 선택
   const [createdCourseId, setCreatedCourseId] = useState(null);
+  const courseSavedModalRef = useRef(null);
   // GPS: 지도 초기 위치를 잡아주는 편의 기능/ 경유지 좌표는 지도 클릭으로 가능
   // 강원도 밖 외지인들도 커스텀코스 생성하게 해야 지역관광의 의미가 있다고 판단.
   // GPS 위치가 강원 근처일 때만 그 좌표로 지도를 열고,
@@ -258,6 +260,10 @@ const CustomCourseForm = () => {
     if (window.location.hash !== '#course-photos-section') return;
     document.getElementById('course-photos-section')?.scrollIntoView({ behavior: 'smooth' });
   }, [isEditMode, loading]);
+
+  // 다른 모달들(MyPage의 내 리뷰/프로필 사진, CourseDetail의 날씨 브리핑)과 동일하게
+  // Tab이 모달 밖으로 새지 않게 잡는다
+  useFocusTrap(courseSavedModalRef, createdCourseId != null);
 
   const handleFieldChange = (field) => (event) => {
     setNotice(''); // 저장 후 더 고치면 "저장됐어요" 지움
@@ -728,11 +734,18 @@ const CustomCourseForm = () => {
       </main>
 
       {createdCourseId != null && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="코스 저장 완료">
-          <div className="review-modal-card">
+        <div
+          ref={courseSavedModalRef}
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="코스 저장 완료"
+        >
+          <div className="course-saved-modal-card">
             <h2>저장이 완료되었습니다</h2>
             <p>사진을 추가해서 코스를 더 알아보기 쉽게 꾸며보세요.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 20 }}>
+            {/* 좁은 화면(모바일)에서 두 버튼이 나란히 넘치지 않도록 wrap - 넘치면 자연히 세로로 쌓임 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, marginTop: 20 }}>
               <button
                 type="button"
                 className="primary-button"
@@ -749,7 +762,7 @@ const CustomCourseForm = () => {
               </button>
               <button
                 type="button"
-                className="text-button"
+                className="secondary-button"
                 onClick={() => {
                   setCreatedCourseId(null);
                   navigate('/courses/custom/mine');
