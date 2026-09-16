@@ -32,7 +32,7 @@ from app.domain.review.schemas import (
     ReviewSummaryResponse,
     ReviewUpdateRequest,
 )
-from app.domain.user.models import UserRole
+from app.domain.user.models import User, UserRole
 from app.redis import get_redis
 
 logger = logging.getLogger(__name__)
@@ -551,7 +551,8 @@ async def get_reviews(
     )
     total = total_result.scalar_one()
     result = await session.execute(
-        select(Review)
+        select(Review, User.nickname)
+        .join(User, User.user_id == Review.user_id)
         .where(Review.course_id == course_id, Review.user_id.is_not(None))
         # created_at만으로 정렬하면 동시각 생성 행끼리 순서가 DB 실행마다 달라질 수
         # 있어, offset 기반 "더보기" 경계에서 항목이 중복되거나 누락될 수 있다.
@@ -559,9 +560,18 @@ async def get_reviews(
         .offset(offset)
         .limit(size)
     )
-    reviews = result.scalars().all()
+    # nickname은 Review 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값(작성자
+    # 프로필 링크 대신 닉네임을 바로 보여주기 위함, 요청 반영) - ORM 인스턴스에 직접
+    # 대입하면 세션 identity map에 캐시된 그 Review 객체에 값이 남아, 같은 세션을 이후
+    # 다른 곳에서 재사용할 때 엉뚱한 닉네임이 묻어 나갈 수 있다(리뷰 지적). model_validate로
+    # 먼저 응답 객체를 만들고, model_copy로 nickname만 덮어쓴 새 인스턴스를 반환해 ORM
+    # 객체 자체는 건드리지 않는다
+    items = [
+        ReviewResponse.model_validate(review).model_copy(update={"nickname": nickname})
+        for review, nickname in result.all()
+    ]
     return ReviewListResponse(
-        items=[ReviewResponse.model_validate(r) for r in reviews],
+        items=items,
         total=total,
         page=page,
         size=size,
@@ -595,13 +605,30 @@ async def get_my_reviews(
         .offset(offset)
         .limit(size)
     )
-    items = []
-    for review, course_name, course_type, course_is_active in result.all():
-        # Review 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값 - DB에는 저장되지 않는다.
-        review.course_name = course_name
-        review.course_type = course_type
-        review.course_is_active = course_is_active
-        items.append(MyReviewResponse.model_validate(review))
+    # course_name/course_type/course_is_active는 Review 모델의 실제 컬럼이 아니라 이
+    # 응답 한정으로만 붙이는 값이다. ORM 인스턴스에 직접 대입하면 세션 identity map에
+    # 캐시된 그 Review 객체에 값이 남아, 같은 세션을 이후 다른 곳에서 재사용할 때 엉뚱한
+    # 값이 묻어 나갈 수 있다(get_reviews와 동일한 이유의 리뷰 지적) - ORM 객체를 건드리는
+    # 대신, 필요한 필드 + 추가 값을 dict로 조립해 한 번에 검증한다(이 셋은 MyReviewResponse의
+    # 필수 필드라 get_reviews의 nickname처럼 "우선 검증 후 model_copy로 덮어쓰기"가 안 됨 -
+    # 기본값 없는 필드는 ORM 객체만 넘기면 애초에 검증에서 막힘)
+    items = [
+        MyReviewResponse.model_validate(
+            {
+                "review_id": review.review_id,
+                "course_id": review.course_id,
+                "course_name": course_name,
+                "course_type": course_type,
+                "course_is_active": course_is_active,
+                "content": review.content,
+                "difficulty": review.difficulty,
+                "created_at": review.created_at,
+                "updated_at": review.updated_at,
+                "images": review.images,
+            }
+        )
+        for review, course_name, course_type, course_is_active in result.all()
+    ]
     return MyReviewListResponse(items=items, total=total, page=page, size=size)
 
 

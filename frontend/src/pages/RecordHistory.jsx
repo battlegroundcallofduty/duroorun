@@ -352,54 +352,76 @@ const RecordHistory = () => {
 
         {!loading && !error && records.length > 0 && (
           <ul className="record-history-list">
-            {records.map((record) => (
-              <li key={record.record_id} className="record-history-item">
-                <div className="record-history-main">
-                  <strong>{record.course_name}</strong>
-                  <span className="record-hint">{formatDate(record.started_at)}</span>
-                </div>
-                <div className="record-history-stats">
-                  <span>{formatElapsed(record.duration_seconds)}</span>
-                  <span>{formatPace(record.pace)}</span>
-                  {record.ended_at ? (
-                    <span className={record.is_completed ? 'record-badge success' : 'record-badge'}>
-                      {record.is_completed ? '완주' : '미완주'}
-                    </span>
-                  ) : (
-                    // 아직 종료되지 않은(다른 탭/기기에서 진행 중이거나, 종료 전 페이지를
-                    // 나간) 기록은 미완주가 아니라 진행 중이라고 보여줘야 한다
-                    <span className="record-badge">진행 중</span>
-                  )}
-                </div>
-                <div className="record-history-actions">
-                  {/* 완주한 기록만 리뷰 대상 코스로 바로 이동할 수 있게 한다 - 이미 리뷰를
-                      쓴 코스여도 똑같이 노출한다(팀 결정): 코스 상세 페이지 자체가
-                      hasMyReview를 확인해서 작성/기존 리뷰 여부를 알아서 보여주므로,
-                      여기서 리뷰 존재 여부를 따로 조회해 구분할 필요가 없다 */}
-                  {/* 배포 스크립트가 프론트를 먼저 빌드/배포하고 백엔드를 나중에 올리는
-                      구조라, 그 짧은 사이엔 백엔드가 아직 이 필드를 안 내려줄 수 있다 -
-                      필드가 없으면(undefined) 무조건 비활성으로 오판하지 않게 true를
-                      기본값으로 둔다(리뷰 지적) */}
-                  {record.is_completed &&
-                    ((record.course_is_active ?? true) ? (
-                      <Link
-                        to={`/courses/${record.course_type.toLowerCase()}/${record.course_id}`}
-                        className="text-button record-history-review-link"
-                      >
-                        리뷰 보기·작성
-                      </Link>
-                    ) : (
-                      // 완주 이후 코스가 비활성화되면 코스 상세 API가 404라 링크를 눌러도
-                      // 막다른 길이 된다 - MyPage.jsx의 삭제된 코스 리뷰 표시와 동일한
-                      // 패턴으로 비활성 텍스트만 보여준다(리뷰 지적)
-                      <span className="text-button record-history-review-link" aria-disabled="true">
-                        삭제된 코스예요
+            {records.map((record) => {
+              const mainContent = (
+                <>
+                  <div className="record-history-main">
+                    <strong>{record.course_name}</strong>
+                    <span className="record-hint">{formatDate(record.started_at)}</span>
+                  </div>
+                  <div className="record-history-stats">
+                    <span>{formatElapsed(record.duration_seconds)}</span>
+                    <span>{formatPace(record.pace)}</span>
+                    {record.ended_at ? (
+                      <span className={record.is_completed ? 'record-badge success' : 'record-badge'}>
+                        {record.is_completed ? '완주' : '미완주'}
                       </span>
-                    ))}
-                  {/* 진행 중(ended_at 없음)인 기록은 다른 탭/기기의 실제 러닝 세션일 수 있어
-                      삭제 버튼을 노출하지 않는다 - 지우면 그 세션의 pause/resume/end 요청이
-                      404를 맞고 GPS/시간 데이터가 통째로 날아간다(리뷰 지적) */}
-                  {record.ended_at && (
+                    ) : (
+                      // 아직 종료되지 않은(다른 탭/기기에서 진행 중이거나, 종료 전 페이지를
+                      // 나간) 기록은 미완주가 아니라 진행 중이라고 보여줘야 한다
+                      <span className="record-badge pending">진행 중</span>
+                    )}
+                  </div>
+                </>
+              );
+
+              // 진행 중(ended_at 없음)인 기록은 카드를 누르면 타이머가 그대로 돌고 있는
+              // 진행 화면으로 바로 이동할 수 있게 한다(요청 반영, 리뷰 관리 카드와 동일한
+              // 패턴) - 안 그러면 코스를 다시 찾아 들어가야 함. 이 상태에선 actions
+              // 영역(리뷰 링크/삭제 버튼)이 비어있어 카드 전체를 링크로 감싸도 충돌이 없다
+              if (!record.ended_at) {
+                return (
+                  <li key={record.record_id} className="record-history-item">
+                    <Link
+                      to={`/records/start/${record.course_type.toLowerCase()}/${record.course_id}`}
+                      className="record-history-item-link"
+                    >
+                      {mainContent}
+                    </Link>
+                  </li>
+                );
+              }
+
+              return (
+                <li key={record.record_id} className="record-history-item">
+                  {mainContent}
+                  <div className="record-history-actions">
+                    {/* 완주한 기록만 리뷰 대상 코스로 바로 이동할 수 있게 한다 - 이미 리뷰를
+                        쓴 코스여도 똑같이 노출한다(팀 결정): 코스 상세 페이지 자체가
+                        hasMyReview를 확인해서 작성/기존 리뷰 여부를 알아서 보여주므로,
+                        여기서 리뷰 존재 여부를 따로 조회해 구분할 필요가 없다 */}
+                    {/* 배포 스크립트가 프론트를 먼저 빌드/배포하고 백엔드를 나중에 올리는
+                        구조라, 그 짧은 사이엔 백엔드가 아직 이 필드를 안 내려줄 수 있다 -
+                        필드가 없으면(undefined) 무조건 비활성으로 오판하지 않게 true를
+                        기본값으로 둔다(리뷰 지적) */}
+                    {record.is_completed &&
+                      ((record.course_is_active ?? true) ? (
+                        <Link
+                          to={`/courses/${record.course_type.toLowerCase()}/${record.course_id}`}
+                          className="text-button record-history-review-link"
+                        >
+                          리뷰 보기·작성
+                        </Link>
+                      ) : (
+                        // 완주 이후 코스가 비활성화되면 코스 상세 API가 404라 링크를 눌러도
+                        // 막다른 길이 된다 - MyPage.jsx의 삭제된 코스 리뷰 표시와 동일한
+                        // 패턴으로 비활성 텍스트만 보여준다(리뷰 지적)
+                        <span className="text-button record-history-review-link" aria-disabled="true">
+                          삭제된 코스예요
+                        </span>
+                      ))}
+                    {/* 진행 중(ended_at 없음)인 기록은 위에서 이미 별도 분기로 처리돼 여기까지
+                        오지 않으므로, 이 아래는 항상 ended_at이 있는 기록만 대상이다 */}
                     <button
                       type="button"
                       className="record-history-delete"
@@ -412,10 +434,10 @@ const RecordHistory = () => {
                           ? '새로고침 필요'
                           : '삭제'}
                     </button>
-                  )}
-                </div>
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
 
