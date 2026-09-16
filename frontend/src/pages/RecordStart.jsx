@@ -420,6 +420,16 @@ const RecordStart = () => {
     ? [{ lat: livePosition.lat, lng: livePosition.lng, color: '#ed174c', size: 22, label: '내 위치' }]
     : [];
   const hasCourseMapData = courseStartEndMarkers.length > 0;
+  // KakaoMap의 autoFit(기본 true)을 그대로 두면, GPS가 갱신될 때마다(markers가
+  // 바뀔 때마다) 지도가 계속 재줌/재센터링되어 "튀는" 문제가 있었다(리뷰 지적) - 여기선
+  // 항상 끄고, 대신 map 생성 시 1회만 적용되는 initialCenter를 코스 시작점으로 줘서
+  // 처음 열릴 때 적어도 코스 근처를 보여주게 한다. (초기 렌더 시점에 "한 번만 맞추고
+  // 이후엔 끈다" 식의 ref 플래그를 시도했었는데, 지도 SDK가 비동기로 늦게 준비되는
+  // 반면 이 컴포넌트는 타이머로 매초 리렌더되어, 지도가 실제로 준비되기 전에 이미
+  // "1회 완료"로 플래그가 꺼져버려 초기 자동맞춤 자체가 무력화되는 버그가 있었다)
+  const initialMapCenter = hasCourseMapData
+    ? { lat: courseStartEndMarkers[0].lat, lng: courseStartEndMarkers[0].lng }
+    : undefined;
 
   return (
     <>
@@ -480,6 +490,8 @@ const RecordStart = () => {
                 path={courseMapPath}
                 markers={[...courseStartEndMarkers, ...liveMarkers]}
                 height="280px"
+                autoFit={false}
+                initialCenter={initialMapCenter}
               />
             )}
             {hasCourseMapData && !livePosition && (phase === 'running' || phase === 'paused') && (
