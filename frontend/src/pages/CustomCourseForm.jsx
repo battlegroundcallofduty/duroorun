@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
@@ -135,7 +135,6 @@ const CustomCourseForm = () => {
   };
   // 아래 loadError: 코스 조회(GET) 실패 전용 (위의 폼 조작 에러 error 와 분리)
   const [loadError, setLoadError] = useState('');
-  const [notice, setNotice] = useState('');
   // 신규 생성 저장 직후에만 씀: 완료 모달에서 "사진 추가"/"나만의 코스로 이동" 선택
   const [createdCourseId, setCreatedCourseId] = useState(null);
   const courseSavedModalRef = useRef(null);
@@ -266,14 +265,12 @@ const CustomCourseForm = () => {
   useFocusTrap(courseSavedModalRef, createdCourseId != null);
 
   const handleFieldChange = (field) => (event) => {
-    setNotice(''); // 저장 후 더 고치면 "저장됐어요" 지움
     setForm({ ...form, [field]: event.target.value });
   };
 
   // waypoints를 바꾸는 세 핸들러(클릭 추가/개별 삭제/전체 삭제)가 공유하는 로직
   // - updater는 setWaypoints처럼 배열 또는 (prev) => next 함수 둘 다 받음.
   const applyWaypoints = useCallback((updater) => {
-    setNotice(''); // 위 handleFieldChange와 동일한 이유
     setWaypointsDirty(true);
     setWaypoints((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -419,11 +416,14 @@ const CustomCourseForm = () => {
       const data = await res.json();
       setWaypointsDirty(false);
       if (isEditMode) {
-        setNotice('저장됐어요');
-      } else {
-        // 완료 모달에서 사용자가 사진 추가/목록 이동을 직접 고르게 함
-        setCreatedCourseId(data.course_id);
+        // '저장하기'와 '코스 상세 확인'을 하나로 합침(팀 결정) - 저장 성공 즉시 상세로
+        // 이동한다. MyCourses.jsx의 코스 카드와 동일하게 from state를 넘겨서, 상세
+        // 페이지의 "목록으로"가 전체 코스 목록이 아니라 나만의 코스로 돌아가게 한다
+        navigate(`/courses/custom/${courseId}`, { state: { from: '/courses/custom/mine' } });
+        return;
       }
+      // 완료 모달에서 사용자가 사진 추가/목록 이동을 직접 고르게 함
+      setCreatedCourseId(data.course_id);
     } catch (err) {
       console.error('커스텀 코스 저장 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -463,7 +463,6 @@ const CustomCourseForm = () => {
       }
       const data = await res.json();
       setImages(data.images ?? []);
-      setNotice(''); // 사진도 저장 후 화면 상태를 바꾸는 수정이므로 동일하게 지움
     } catch (err) {
       console.error('코스 이미지 업로드 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -484,7 +483,6 @@ const CustomCourseForm = () => {
         return;
       }
       setImages((prev) => prev.filter((img) => img.image_id !== imageId));
-      setNotice('');
     } catch (err) {
       console.error('코스 이미지 삭제 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -500,7 +498,8 @@ const CustomCourseForm = () => {
         showError('삭제에 실패했어요');
         return;
       }
-      navigate('/courses');
+      // 삭제한 건 내가 만든 코스니, 전체 코스 목록보다 나만의 코스로 돌아가는 게 맞다
+      navigate('/courses/custom/mine');
     } catch (err) {
       console.error('커스텀 코스 삭제 실패:', err);
       showError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -691,34 +690,38 @@ const CustomCourseForm = () => {
                       </button>
                     </div>
                   ))}
+                  {/* 사진 카드들과 같은 자리에, 같은 크기의 점선 박스로 - 파일 업로드에서
+                      흔히 쓰는 "추가" 타일 패턴(밑줄 텍스트 링크보다 존재감이 더 명확함) */}
+                  {images.length < COURSE_IMAGE_MAX_COUNT && (
+                    <label
+                      className="course-photo-add"
+                      aria-disabled={uploadingImage || undefined}
+                    >
+                      <span className="course-photo-add-icon" aria-hidden="true">
+                        +
+                      </span>
+                      {uploadingImage ? '업로드 중...' : '사진 추가'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                        hidden
+                      />
+                    </label>
+                  )}
                 </div>
-                {images.length < COURSE_IMAGE_MAX_COUNT && (
-                  <label className="mypage-image-upload">
-                    {uploadingImage ? '업로드 중...' : '사진 추가'}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={handleImageUpload}
-                      disabled={uploadingImage}
-                      hidden
-                    />
-                  </label>
-                )}
               </div>
             )}
 
             {error && errorField !== 'waypoint' && <p className="onboarding-error">{error}</p>}
-            {notice && <p className="mypage-success">{notice}</p>}
 
             <div className="course-form-actions">
+              {/* '저장하기'가 저장 + 코스 상세로 이동을 함께 한다(팀 결정) - 별도 '코스
+                  상세 확인' 버튼은 더 이상 필요 없어 뺐다 */}
               <button type="submit" className="primary-button" disabled={saving}>
                 {saving ? '저장 중...' : '저장하기'}
               </button>
-              {isEditMode && (
-                <Link to={`/courses/custom/${courseId}`} className="secondary-button">
-                  코스 상세 확인
-                </Link>
-              )}
               {isEditMode && (
                 <button
                   type="button"

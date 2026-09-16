@@ -150,7 +150,10 @@ export default function Home() {
         <section className="discovery">
           <div className="section-heading">
             <div><span className="section-kicker">커스텀 코스</span><h2>러너들이 직접 만든 인기 코스 TOP3</h2></div>
-            <Link to="/courses">전체 코스 보기 <span>→</span></Link>
+            {/* CourseList.jsx가 ?type=custom으로 시작 탭을 커스텀으로 여는 걸 이미
+                지원하고 있었는데(주석에 이 링크용이라고 적혀있었음) 정작 여기서 안 쓰고
+                있었다 - 연결한다 */}
+            <Link to="/courses?type=custom">전체 코스 보기 <span>→</span></Link>
           </div>
           <PopularCourseGrid courses={customCourses} />
         </section>
