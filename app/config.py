@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     NAVER_CLIENT_SECRET: str = ""
     NAVER_REDIRECT_URI: str = ""
 
+    # 공모전 심사위원용 관리자 체험 로그인 (임시) - 비워두면 기능 자체가 비활성화됨.
+    # 공모전 끝나면 이 값들을 지워서 기능을 꺼야 함.
+    DEMO_ADMIN_EMAIL: str = ""
+    DEMO_ADMIN_PASSWORD: str = ""
+    DEMO_ADMIN_NICKNAME: str = "openapi"
+
     # 두루누비
     DURUNUBI_API_KEY: str = ""
     DURUNUBI_BASE_URL: str = "https://apis.data.go.kr/B551011/Durunubi"

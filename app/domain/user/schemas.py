@@ -19,6 +19,13 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class DemoAdminLoginRequest(BaseModel):
+    """공모전 심사위원용 관리자 체험 로그인 요청 (임시 기능)."""
+
+    email: str
+    password: str
+
+
 class ProfileImageResponse(BaseModel):
     """프로필 이미지 업로드 응답."""
 

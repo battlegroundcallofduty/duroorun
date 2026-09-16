@@ -35,7 +35,7 @@ from app.domain.course.models import Course, CourseImage, CourseType, CourseWayp
 from app.domain.facility.models import CourseFacility
 from app.domain.record.models import Record
 from app.domain.review.models import Review, ReviewImage, ReviewSummary
-from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User, UserRole
+from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User
 
 logger = logging.getLogger(__name__)
 
@@ -615,15 +615,11 @@ async def complete_signup(
         await _check_not_banned(provider_type, provider_uid, db)
 
         try:
-            # 공모전 심사 편의를 위한 임시 조치 - 구글로 가입하면 자동 관리자 승격.
-            # 공모전 끝나면 반드시 제거할 것 (도희 확인, 2026-09-17).
-            user_role = UserRole.ADMIN if provider_type == ProviderType.GOOGLE else UserRole.USER
             user = User(
                 name=name,
                 nickname=nickname,
                 location=location,
                 terms_agreed_at=datetime.now(UTC),
-                user_role=user_role,
             )
             db.add(user)
             await db.flush()
@@ -659,6 +655,51 @@ async def complete_signup(
             await release_lock_if_owner(lock_key, lock_token, redis)
         except RedisError:
             pass  # 락 삭제 실패해도 TTL(_SIGNUP_LOCK_TTL_SECONDS)로 자동 해제됨
+
+
+async def demo_admin_login(
+    email: str, password: str, db: AsyncSession, redis: Redis
+) -> tuple[str, str]:
+    """공모전 심사위원용 관리자 체험 로그인 (임시 기능).
+
+    실제 회원가입/비밀번호 체계가 아니라, .env에 설정해둔 고정 이메일/비밀번호와
+    일치할 때만 미리 만들어둔 관리자 계정(DEMO_ADMIN_NICKNAME)으로 로그인시켜준다.
+    설정값이 비어있으면(DEMO_ADMIN_EMAIL/PASSWORD 미설정) 기능 자체를 비활성화한다
+    - 공모전 끝나면 .env에서 값만 지우면 즉시 꺼짐.
+    """
+    if not settings.DEMO_ADMIN_EMAIL or not settings.DEMO_ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="사용할 수 없는 기능입니다"
+        )
+    # 타이밍 공격으로 값을 한 글자씩 추측하지 못하도록 상수 시간 비교
+    email_ok = secrets.compare_digest(email, settings.DEMO_ADMIN_EMAIL)
+    password_ok = secrets.compare_digest(password, settings.DEMO_ADMIN_PASSWORD)
+    if not (email_ok and password_ok):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다",
+        )
+
+    result = await db.execute(
+        select(User).where(
+            User.nickname == settings.DEMO_ADMIN_NICKNAME, User.deleted_at.is_(None)
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="관리자 체험 계정이 설정되지 않았습니다",
+        )
+
+    user_id = user.user_id
+    await _touch_last_login(user_id, db)
+
+    access_token = create_access_token(user_id)
+    refresh_token, refresh_jti = create_refresh_token(user_id)
+    await save_refresh_jti(user_id, refresh_jti, redis)
+
+    return access_token, refresh_token
 
 
 async def refresh_tokens(refresh_token: str, db: AsyncSession, redis: Redis) -> tuple[str, str]:
