@@ -42,7 +42,9 @@ class Settings(BaseSettings):
     # 공모전 끝나면 이 값들을 지워서 기능을 꺼야 함.
     DEMO_ADMIN_EMAIL: str = ""
     DEMO_ADMIN_PASSWORD: str = ""
-    DEMO_ADMIN_NICKNAME: str = "openapi"
+    # 닉네임은 나중에 바뀌거나 다른 유저가 재사용할 수 있어 식별자로 부적합 - 안 바뀌는
+    # PK로 고정한다 (코드리뷰 반영). 0이면 미설정으로 취급.
+    DEMO_ADMIN_USER_ID: int = 0
 
     # 두루누비
     DURUNUBI_API_KEY: str = ""

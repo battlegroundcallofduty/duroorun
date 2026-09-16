@@ -35,7 +35,7 @@ from app.domain.course.models import Course, CourseImage, CourseType, CourseWayp
 from app.domain.facility.models import CourseFacility
 from app.domain.record.models import Record
 from app.domain.review.models import Review, ReviewImage, ReviewSummary
-from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User
+from app.domain.user.models import BannedAccount, ProviderType, SocialAccount, User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -663,30 +663,37 @@ async def demo_admin_login(
     """공모전 심사위원용 관리자 체험 로그인 (임시 기능).
 
     실제 회원가입/비밀번호 체계가 아니라, .env에 설정해둔 고정 이메일/비밀번호와
-    일치할 때만 미리 만들어둔 관리자 계정(DEMO_ADMIN_NICKNAME)으로 로그인시켜준다.
+    일치할 때만 미리 만들어둔 관리자 계정(DEMO_ADMIN_USER_ID)으로 로그인시켜준다.
     설정값이 비어있으면(DEMO_ADMIN_EMAIL/PASSWORD 미설정) 기능 자체를 비활성화한다
     - 공모전 끝나면 .env에서 값만 지우면 즉시 꺼짐.
+
+    계정 식별은 닉네임이 아니라 user_id로 한다 - 닉네임은 나중에 바뀌거나 다른 유저가
+    재사용할 수 있어 식별자로 쓰면 엉뚱한 계정으로 로그인될 위험이 있다(코드리뷰 지적).
+    조회한 계정이 실제로 ADMIN이 아니면(권한이 바뀌었거나 탈퇴한 경우 포함) 거부한다.
     """
     if not settings.DEMO_ADMIN_EMAIL or not settings.DEMO_ADMIN_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="사용할 수 없는 기능입니다"
         )
-    # 타이밍 공격으로 값을 한 글자씩 추측하지 못하도록 상수 시간 비교
-    email_ok = secrets.compare_digest(email, settings.DEMO_ADMIN_EMAIL)
-    password_ok = secrets.compare_digest(password, settings.DEMO_ADMIN_PASSWORD)
+    # ASCII 외 문자(한글 등)가 섞이면 secrets.compare_digest가 TypeError를 던지므로,
+    # UTF-8 바이트로 바꿔서 비교한다 - 문자열 그대로 비교하면 한글 입력 시 500 에러가
+    # 나고 401로 처리되지 않는다(코드리뷰 지적, 재현 확인됨).
+    email_ok = secrets.compare_digest(email.encode(), settings.DEMO_ADMIN_EMAIL.encode())
+    password_ok = secrets.compare_digest(password.encode(), settings.DEMO_ADMIN_PASSWORD.encode())
     if not (email_ok and password_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="이메일 또는 비밀번호가 올바르지 않습니다",
         )
 
-    result = await db.execute(
-        select(User).where(
-            User.nickname == settings.DEMO_ADMIN_NICKNAME, User.deleted_at.is_(None)
-        )
-    )
-    user = result.scalar_one_or_none()
-    if user is None:
+    user = None
+    if settings.DEMO_ADMIN_USER_ID:
+        user = await db.get(User, settings.DEMO_ADMIN_USER_ID)
+    if (
+        user is None
+        or user.deleted_at is not None
+        or user.user_role != UserRole.ADMIN
+    ):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="관리자 체험 계정이 설정되지 않았습니다",
