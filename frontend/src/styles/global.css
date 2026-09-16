@@ -68,7 +68,6 @@ button.primary-button:disabled { cursor:not-allowed; }
 .discovery-alt { background:#f6f8f7; }
 .attraction-highlight { padding:70px clamp(28px,8vw,124px) 90px; background:#f6f8f7; }
 .attraction-highlight .attraction-scroll-row { padding-bottom:0; }
-.attraction-heading-actions { display:flex; align-items:center; gap:16px; }
 .section-heading { display:flex; justify-content:space-between; align-items:end; margin-bottom:32px; }
 .section-kicker { color:var(--green); font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; }
 h2 { font-size:36px; letter-spacing:-1.5px; margin:8px 0 0; line-height:1.25; }
