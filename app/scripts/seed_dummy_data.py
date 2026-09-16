@@ -7,7 +7,11 @@ docker compose exec backend python -m app.scripts.seed_dummy_data
   인기 코스(완주 횟수 기준) 랭킹에 "해파랑길 30코스"가 DRNB 1위로 뜨도록 맞춤.
 ㅡ CUSTOM 코스가 아직 하나도 없어서, 실제 서비스 로직(create_course)을 그대로 호출해
   3개 새로 만듦 (강원도 경계 검증/시군 계산/편의시설 동기화까지 정상 처리됨).
-ㅡ 여러 번 실행하면 중복 생성됨 (idempotent 아님) - 한 번만 실행할 것.
+ㅡ 목표 완주 건수는 "기존 완주 기록 + 이번에 추가하는 건수"의 합계 기준.
+  기존에 이미 완주 기록이 있으면 그만큼 덜 추가해서 목표 총합을 맞춘다
+  (코드리뷰 반영: 무작위 배분이 기존 기록을 고려 안 하면 목표 순위가 어긋날 수 있음).
+ㅡ CUSTOM 코스는 이름으로 기존 코스를 먼저 찾고 없을 때만 생성 - 도중에 실패해도
+  재실행 시 이미 만든 코스는 재사용하고 이어서 완주 기록만 채운다 (재실행 가능).
 """
 
 import asyncio
@@ -17,7 +21,7 @@ import selectors
 import sys
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.database import AsyncSessionLocal
 from app.domain.course.models import Course, CourseType, Difficulty
@@ -34,10 +38,12 @@ logger = logging.getLogger(__name__)
 NICKNAMES = ["바나낭우유", "키티", "망고마라탕", "1번", "딸기설렁탕", "바나낭우유지", "키티구글"]
 
 # --- 인기 코스 1/2/3위로 만들 기존 DRNB 코스 (완주 횟수 내림차순) ---
+# must_include: 이 코스엔 반드시 포함시킬 유저(개인 기록용) - 목표 건수 안에서 배분되므로
+# 순위에 영향 주지 않음 (기존처럼 목표 건수 밖에서 추가로 얹지 않음)
 DRNB_TARGETS = [
-    ("해파랑길 30코스", 6),
-    ("해파랑길 31코스", 4),
-    ("해파랑길 41코스", 3),
+    {"course_name": "해파랑길 30코스", "completions": 6, "must_include": []},
+    {"course_name": "해파랑길 31코스", "completions": 4, "must_include": []},
+    {"course_name": "해파랑길 41코스", "completions": 3, "must_include": ["키티"]},
 ]
 
 # --- 새로 만들 CUSTOM 코스 (제작자 닉네임, 완주 횟수) ---
@@ -45,6 +51,7 @@ CUSTOM_COURSES = [
     {
         "creator_nickname": "바나낭우유",
         "completions": 5,
+        "must_include": ["키티구글"],
         "request": CourseCreateRequest(
             course_name="소양강 러닝 코스",
             distance=5.2,
@@ -61,6 +68,7 @@ CUSTOM_COURSES = [
     {
         "creator_nickname": "망고마라탕",
         "completions": 3,
+        "must_include": [],
         "request": CourseCreateRequest(
             course_name="경포호 한바퀴",
             distance=8.0,
@@ -77,6 +85,7 @@ CUSTOM_COURSES = [
     {
         "creator_nickname": "딸기설렁탕",
         "completions": 2,
+        "must_include": [],
         "request": CourseCreateRequest(
             course_name="속초 해변 러닝",
             distance=3.1,
@@ -146,41 +155,79 @@ def _make_record(*, user_id: int, course: Course, days_ago: int) -> Record:
     )
 
 
+async def _count_completions(session, course_id: int) -> int:
+    result = await session.execute(
+        select(func.count(Record.record_id)).where(
+            Record.course_id == course_id, Record.is_completed.is_(True)
+        )
+    )
+    return result.scalar_one()
+
+
+async def _get_or_create_custom_course(session, users: dict[str, User], spec: dict) -> Course:
+    """이름으로 기존 CUSTOM 코스를 먼저 찾고, 없을 때만 새로 만든다.
+
+    ㅡ create_course()는 내부에서 즉시 커밋하므로, 중간에 실패해도 앞서 만든 코스는
+      DB에 남는다. 재실행 시 이미 만든 코스를 중복 생성하지 않고 재사용하기 위함
+      (코드리뷰 반영: 부분 실패 후 재실행하면 CUSTOM 코스가 중복 생성되는 문제).
+    """
+    course_name = spec["request"].course_name
+    existing = await session.execute(
+        select(Course).where(
+            Course.course_name == course_name, Course.course_type == CourseType.CUSTOM
+        )
+    )
+    course = existing.scalar_one_or_none()
+    if course is not None:
+        logger.info("CUSTOM 코스 이미 존재, 재사용: %s (course_id=%s)", course_name, course.course_id)
+        return course
+
+    creator = users[spec["creator_nickname"]]
+    response = await create_course(session, creator.user_id, spec["request"])
+    course = await session.get(Course, response.course_id)
+    logger.info(
+        "CUSTOM 코스 생성 완료: %s (course_id=%s, 제작자=%s)",
+        course.course_name,
+        course.course_id,
+        spec["creator_nickname"],
+    )
+    return course
+
+
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
         users = await _get_users_by_nickname(session, NICKNAMES)
-        drnb_courses = await _get_courses_by_name(session, [name for name, _ in DRNB_TARGETS])
+        drnb_courses = await _get_courses_by_name(
+            session, [target["course_name"] for target in DRNB_TARGETS]
+        )
 
-        # 1) CUSTOM 코스 3개 생성 (실제 서비스 함수 그대로 사용)
+        # 1) CUSTOM 코스 3개 준비 (이미 있으면 재사용, 없으면 생성)
         custom_courses: list[Course] = []
         for spec in CUSTOM_COURSES:
-            creator = users[spec["creator_nickname"]]
-            response = await create_course(session, creator.user_id, spec["request"])
-            course = await session.get(Course, response.course_id)
-            custom_courses.append(course)
-            logger.info(
-                "CUSTOM 코스 생성 완료: %s (course_id=%s, 제작자=%s)",
-                course.course_name,
-                course.course_id,
-                spec["creator_nickname"],
-            )
+            custom_courses.append(await _get_or_create_custom_course(session, users, spec))
 
         nickname_cycle = list(users.keys())
         random.shuffle(nickname_cycle)
 
         def _pick_nicknames(n: int, exclude: set[str] | None = None) -> list[str]:
+            if n <= 0:
+                return []
             pool = [nn for nn in nickname_cycle if nn not in (exclude or set())]
+            if not pool:
+                return []
             if len(pool) < n:
                 pool = pool * ((n // len(pool)) + 1)
             return random.sample(pool, n) if len(pool) >= n else pool[:n]
 
         # 대상 유저가 대상 코스에 이미 써둔 리뷰가 있으면(예: 팀원이 개발 중 직접 테스트로
         # 남긴 리뷰) uq_reviews_course_user 위반으로 커밋 전체가 실패하므로 미리 걸러낸다.
-        target_course_ids = [c.course_id for c in drnb_courses.values()]
         target_user_ids = [u.user_id for u in users.values()]
+        all_course_ids = [c.course_id for c in drnb_courses.values()] + [
+            c.course_id for c in custom_courses
+        ]
         existing_review_rows = await session.execute(
             select(Review.course_id, Review.user_id).where(
-                Review.course_id.in_(target_course_ids), Review.user_id.in_(target_user_ids)
+                Review.course_id.in_(all_course_ids), Review.user_id.in_(target_user_ids)
             )
         )
 
@@ -203,54 +250,73 @@ async def seed() -> None:
                 )
             )
 
-        # 2) DRNB 인기 코스 3개에 완주 기록 배분 (요청한 순위대로 개수 차등)
-        for name, completion_count in DRNB_TARGETS:
-            course = drnb_courses[name]
-            reviewers = _pick_nicknames(min(2, completion_count))
-            for i, nickname in enumerate(reviewers):
-                records.append(
-                    _make_record(user_id=users[nickname].user_id, course=course, days_ago=3 + i * 4)
+        async def _allocate_completions(
+            course: Course, target_total: int, must_include: list[str], *, base_days_ago: int
+        ) -> None:
+            """course에 완주 기록을 추가해서 총 완주 건수가 target_total이 되도록 맞춘다.
+
+            ㅡ 기존 완주 기록 수를 먼저 세서 그만큼 빼고 추가한다 - 안 그러면 실행마다
+              (또는 재실행 시) 목표보다 많아져 순위가 어긋날 수 있음(코드리뷰 반영).
+            ㅡ must_include(개인 기록용 유저)는 목표 건수 "안에서" 배분한다 - 목표 밖에
+              추가로 얹으면 다른 코스와 동률/역전이 날 수 있어서(코드리뷰 반영).
+            """
+            existing_count = await _count_completions(session, course.course_id)
+            needed = target_total - existing_count
+            if needed <= 0:
+                logger.warning(
+                    "%s: 이미 완주 기록이 %d건 있어 목표(%d건)를 넘어 추가하지 않음",
+                    course.course_name,
+                    existing_count,
+                    target_total,
                 )
-                _add_review(course, nickname)
-            remaining = completion_count - len(reviewers)
-            for i, nickname in enumerate(_pick_nicknames(remaining, exclude=set(reviewers))):
+                return
+
+            must_include = [nn for nn in must_include if nn in users][:needed]
+            rest = _pick_nicknames(needed - len(must_include), exclude=set(must_include))
+            selected = must_include + rest
+
+            reviewer_count = min(2, len(selected))
+            for i, nickname in enumerate(selected):
                 records.append(
                     _make_record(
-                        user_id=users[nickname].user_id, course=course, days_ago=10 + i * 5
+                        user_id=users[nickname].user_id,
+                        course=course,
+                        days_ago=base_days_ago + i * 3,
                     )
                 )
+                if i < reviewer_count:
+                    _add_review(course, nickname)
+
+        # 2) DRNB 인기 코스 3개에 완주 기록 배분 (요청한 순위대로 개수 차등)
+        for target in DRNB_TARGETS:
+            await _allocate_completions(
+                drnb_courses[target["course_name"]],
+                target["completions"],
+                target["must_include"],
+                base_days_ago=3,
+            )
 
         # 3) CUSTOM 코스 3개에 완주 기록 배분
         for spec, course in zip(CUSTOM_COURSES, custom_courses, strict=True):
-            completion_count = spec["completions"]
-            reviewers = _pick_nicknames(min(2, completion_count))
-            for i, nickname in enumerate(reviewers):
-                records.append(
-                    _make_record(user_id=users[nickname].user_id, course=course, days_ago=2 + i * 3)
-                )
-                _add_review(course, nickname)
-            remaining = completion_count - len(reviewers)
-            for i, nickname in enumerate(_pick_nicknames(remaining, exclude=set(reviewers))):
-                records.append(
-                    _make_record(user_id=users[nickname].user_id, course=course, days_ago=8 + i * 4)
-                )
-
-        # 4) 키티/키티구글 개인 기록 보강 - 완주해본 적 없는 코스 하나씩 더 추가
-        extra_targets = [
-            ("키티", drnb_courses["해파랑길 41코스"]),
-            ("키티구글", custom_courses[0]),
-        ]
-        for nickname, course in extra_targets:
-            user_id = users[nickname].user_id
-            if not any(r.user_id == user_id and r.course_id == course.course_id for r in records):
-                records.append(_make_record(user_id=user_id, course=course, days_ago=1))
-            _add_review(course, nickname)
+            await _allocate_completions(
+                course, spec["completions"], spec["must_include"], base_days_ago=2
+            )
 
         session.add_all(records)
         session.add_all(reviews)
         await session.commit()
 
         logger.info("완주 기록 %d건, 리뷰 %d건 생성 완료", len(records), len(reviews))
+
+        # 4) 최종 집계 확인 - 기존 기록까지 합쳐서 실제로 목표 순위대로 나왔는지 로그로 검증
+        logger.info("=== 최종 완주 건수 (기존 + 이번 추가분 합계) ===")
+        for target in DRNB_TARGETS:
+            course = drnb_courses[target["course_name"]]
+            total = await _count_completions(session, course.course_id)
+            logger.info("%s: %d건 (목표 %d건)", course.course_name, total, target["completions"])
+        for spec, course in zip(CUSTOM_COURSES, custom_courses, strict=True):
+            total = await _count_completions(session, course.course_id)
+            logger.info("%s: %d건 (목표 %d건)", course.course_name, total, spec["completions"])
 
 
 if __name__ == "__main__":
