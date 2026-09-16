@@ -993,6 +993,11 @@ const CourseDetail = () => {
           <div className="attraction-section">
             <div className="attraction-section-header">
               <h2>주변 관광지</h2>
+            </div>
+            <div className="attraction-hint-row">
+              <p className="kakao-map-hint-static">
+                관광, 문화, 식당, 숙박시설 등을 포함하여 거리가 가까운 순으로 추천해드립니다.
+              </p>
               <div className="attraction-scroll-arrows">
                 <button
                   type="button"
@@ -1012,9 +1017,6 @@ const CourseDetail = () => {
                 </button>
               </div>
             </div>
-            <p className="kakao-map-hint-static">
-              관광, 문화, 식당, 숙박시설 등을 포함하여 거리가 가까운 순으로 추천해드립니다.
-            </p>
             <div className="attraction-scroll-row" ref={attractionScrollRef}>
               {attractions.map((attraction) => (
                 <div
