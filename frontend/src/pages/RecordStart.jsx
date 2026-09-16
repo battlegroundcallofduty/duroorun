@@ -20,6 +20,17 @@ const getPosition = () =>
     });
   });
 
+// 러닝 시작/종료 효과음 - 버튼 클릭(유저 제스처) 직후에만 호출되므로 브라우저
+// 자동재생 정책에 안 걸린다. 재생 실패(디코딩 오류 등)해도 핵심 기록 기능엔
+// 영향 없게 조용히 무시한다.
+const playSound = (src) => {
+  try {
+    new Audio(src).play().catch(() => {});
+  } catch {
+    // 조용히 무시
+  }
+};
+
 const RecordStart = () => {
   const { courseType, courseId } = useParams();
   const navigate = useNavigate();
@@ -218,6 +229,7 @@ const RecordStart = () => {
       setRecord(data);
       setElapsedSeconds(0);
       setPhase('running');
+      playSound('/assets/start.mp3');
     } catch {
       if (!isStale()) {
         setError('서버에 연결할 수 없어요.');
@@ -346,6 +358,7 @@ const RecordStart = () => {
       if (isStale()) return;
       setResult(finished);
       setPhase('finished');
+      playSound('/assets/end.mp3');
     } catch {
       if (isStale()) return;
       // 네트워크 에러(응답 자체를 못 받음)일 수 있어, 실제로 서버에 저장됐는지 다시
