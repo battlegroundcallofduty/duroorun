@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     COURSE_IMAGE_MAX_COUNT: int = 3
     COURSE_IMAGE_MAX_SIZE_MB: int = 5
     REVIEW_IMAGE_MAX_COUNT: int = 5
-    REVIEW_IMAGE_MAX_SIZE_MB: int = 2
+    REVIEW_IMAGE_MAX_SIZE_MB: int = 5
     PROFILE_IMAGE_MAX_SIZE_MB: int = 2
 
     # 프로필 입력 정책

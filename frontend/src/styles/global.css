@@ -26,6 +26,11 @@ h1 em { font-style:normal; color:var(--blue); }
 .primary-button { background:var(--green); color:white; padding:16px 22px; border-radius:4px; box-shadow:0 8px 20px rgba(13,177,75,.18); }
 .primary-button.danger-button { background:var(--red); box-shadow:none; }
 .primary-button span { margin-left:25px; }
+/* .primary-button도 <a>(Link)뿐 아니라 <button>(리뷰 등록 등)으로도 쓰이는데, 이 기본
+   규칙엔 cursor가 없어서 일부 컨텍스트(review-form 등)는 화살표 커서로 남아있었다 -
+   여기서 한 번에 맞춰준다 (다른 곳에서 이미 개별로 cursor:pointer 준 곳은 중복이라도 무해) */
+button.primary-button { cursor:pointer; }
+button.primary-button:disabled { cursor:not-allowed; }
 .text-button { color:#345452; font-size:14px; border-bottom:1px solid #9cafaa; padding-bottom:5px; }
 .text-button span { margin-left:8px; color:var(--blue); }
 .quick-stats { display:flex; gap:34px; margin-top:58px; }
@@ -318,6 +323,10 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
    버튼(.weather-briefing-button 등)과 동일한 클릭 느낌이 나도록 커서도 맞춰준다 */
 button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; }
 button.text-button:disabled { cursor:not-allowed; }
+/* "이미지 추가"처럼 숨긴 파일 input을 감싸는 <label>도 버튼과 똑같이 커서가 기본값이라
+   손모양이 안 떴다 - 동일하게 맞춘다 */
+label.text-button { cursor:pointer; }
+label.text-button:has(input:disabled) { cursor:not-allowed; }
 
 /* 코스 상세 - 리뷰 (목록/작성/수정/삭제) */
 .review-summary-box { margin:24px 0; padding:20px; background:var(--cream); border-radius:10px; }
