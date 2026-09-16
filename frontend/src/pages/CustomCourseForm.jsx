@@ -528,7 +528,7 @@ const CustomCourseForm = () => {
       <Header />
       <main className="course-detail-page">
         <h1 className="course-form-title">{isEditMode ? '커스텀 코스 수정' : '커스텀 코스 생성'}</h1>
-        <p className="course-detail-desc">🏃 커스텀 코스는 현재 강원도 지역에서만 만들 수 있어요.</p>
+        <p className="course-detail-desc"> 커스텀 코스는 현재 강원도 지역에서만 만들 수 있습니다.</p>
 
         {/* user가 아직 null이면(로그인 확인 전이거나 곧 /login으로 이동), 폼 숨김 -
             신규 생성 모드는 loading이 false라 !user 없으면 폼이 잠깐 노출됨 */}
@@ -562,10 +562,8 @@ const CustomCourseForm = () => {
             />
 
             <label>경유지 (지도를 클릭해서 순서대로 추가)</label>
-            <p className="kakao-map-hint-static">⚠️ 지도가 제대로 표시되지 않으면 새로고침을 한번 해주세요</p>
             <p className="kakao-map-hint-static">
-              ➡️ 경유지끼리 직선으로 이어 경로를 표시합니다. 실제 도로·트레일과 다를 수 있습니다.
-              촘촘히 찍을수록 실제 경로에 가까워집니다.
+              ㅡ 경유지끼리 직선으로 이어 경로를 표시합니다. 촘촘히 찍을수록 실제 경로에 가까워집니다.
             </p>
             {gangwonBoundaryFailed && (
               <p className="kakao-map-hint-static">
