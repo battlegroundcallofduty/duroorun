@@ -89,7 +89,7 @@ export default function Home() {
   }, [topCourse]);
 
   return (
-    <main>
+    <main className="home-page">
       <Header />
 
       <section className="hero" id="top">
