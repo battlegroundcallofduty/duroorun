@@ -235,7 +235,6 @@ async def test_end_record_without_user_end_coords_saves_but_not_completed(db_ses
     record = Record(
         user_id=owner.user_id,
         course_id=course.course_id,
-        # 60초 미만이면 "러닝시간이 너무 짧아" 검증에 걸려버리므로 여유를 둔다
         started_at=datetime.now(UTC) - timedelta(seconds=90),
         ended_at=None,
         is_completed=False,
@@ -259,6 +258,136 @@ async def test_end_record_without_user_end_coords_saves_but_not_completed(db_ses
             "다만 러닝 기록은 기록할 수 있어요."
         )
         assert result.duration_seconds is not None
+    finally:
+        await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
+async def test_end_record_under_60_seconds_still_saves(db_session):
+    """60초 미만 러닝도 거부하지 않고 그대로 종료·저장된다(요청 반영).
+
+    이전엔 짧은 기록을 아예 거부(commit 안 됨)했는데, 그러면 서버는 저장을 안 했는데
+    프론트는 이미 종료 처리된 것처럼 넘어가 버려서, 새로고침하면 기록이 여전히
+    "진행 중"으로 남아있는 문제가 있었다.
+    """
+    course = await _make_course(db_session)
+    owner = User(nickname=f"pytest-owner-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    record = Record(
+        user_id=owner.user_id,
+        course_id=course.course_id,
+        started_at=datetime.now(UTC) - timedelta(seconds=5),
+        ended_at=None,
+        is_completed=False,
+        user_start_lat=1.0,
+        user_start_lng=1.0,
+    )
+    db_session.add(record)
+    await db_session.commit()
+    await db_session.refresh(record)
+
+    try:
+        result = await end_record(
+            session=db_session,
+            user_id=owner.user_id,
+            record_id=record.record_id,
+            body=RecordEndRequest(user_end_lat=1.0, user_end_lng=1.0),
+        )
+        assert result.duration_seconds is not None
+        assert result.duration_seconds < 60
+        assert result.is_completed is False
+    finally:
+        await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
+async def test_end_record_fast_completion_on_short_course_not_credited(db_session):
+    """GPS 좌표는 코스 시작/종료점과 정확히 일치해도, 소요시간이 너무 짧으면 완주로
+    인정하지 않는다(리뷰 지적).
+
+    60초 미만 기록도 저장은 되게 바꾸면서(요청 반영), 시작/종료 지점이 가까운 짧은
+    코스에서는 좌표 근접도만으로 완주 인증이 나버려 GPS 스푸핑/제자리 걸음으로도 순식간에
+    "완주"를 딸 수 있는 구멍이 생겼다 - 완주 인증에는 최소 소요시간도 같이 요구해 막는다.
+    """
+    course = await _make_course(db_session)
+    course.start_lat, course.start_lng = 1.0, 1.0
+    course.end_lat, course.end_lng = 1.0, 1.0  # 시작=종료인 짧은 루프 코스
+    owner = User(nickname=f"pytest-owner-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    record = Record(
+        user_id=owner.user_id,
+        course_id=course.course_id,
+        started_at=datetime.now(UTC) - timedelta(seconds=5),
+        ended_at=None,
+        is_completed=False,
+        user_start_lat=1.0,
+        user_start_lng=1.0,
+    )
+    db_session.add(record)
+    await db_session.commit()
+    await db_session.refresh(record)
+
+    try:
+        result = await end_record(
+            session=db_session,
+            user_id=owner.user_id,
+            record_id=record.record_id,
+            # 좌표는 코스 시작/종료점과 완전히 일치 - 시간만 짧다
+            body=RecordEndRequest(user_end_lat=1.0, user_end_lng=1.0),
+        )
+        assert result.duration_seconds < 60
+        assert result.is_completed is False
+        assert result.verification_message == (
+            "러닝 시간이 너무 짧아 완주 인증이 처리되지 않았어요. "
+            "다만 러닝 기록은 기록할 수 있어요."
+        )
+    finally:
+        await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
+async def test_end_record_completion_still_works_over_min_duration(db_session):
+    """완주 인증 최소 시간(60초) 이상이고 좌표도 맞으면 예전처럼 정상적으로 완주 인증된다
+    (최소 시간 게이트 추가가 정상 완주 케이스를 깨지 않는지 회귀 확인)."""
+    course = await _make_course(db_session)
+    course.start_lat, course.start_lng = 1.0, 1.0
+    course.end_lat, course.end_lng = 2.0, 2.0
+    owner = User(nickname=f"pytest-owner-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    record = Record(
+        user_id=owner.user_id,
+        course_id=course.course_id,
+        started_at=datetime.now(UTC) - timedelta(seconds=90),
+        ended_at=None,
+        is_completed=False,
+        user_start_lat=1.0,
+        user_start_lng=1.0,
+    )
+    db_session.add(record)
+    await db_session.commit()
+    await db_session.refresh(record)
+
+    try:
+        result = await end_record(
+            session=db_session,
+            user_id=owner.user_id,
+            record_id=record.record_id,
+            body=RecordEndRequest(user_end_lat=2.0, user_end_lng=2.0),
+        )
+        assert result.is_completed is True
+        assert result.verification_message is None
     finally:
         await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
         await db_session.execute(delete(User).where(User.user_id == owner.user_id))

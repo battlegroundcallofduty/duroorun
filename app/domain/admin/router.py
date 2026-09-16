@@ -13,6 +13,7 @@ from app.domain.admin.schemas import (
     ForceWithdrawRequest,
     UserSearchListResponse,
 )
+from app.domain.review.schemas import MyReviewListResponse
 from app.domain.user.models import User
 from app.domain.user.schemas import MessageResponse
 from app.redis import get_redis
@@ -43,6 +44,20 @@ async def search_users(
 ) -> UserSearchListResponse:
     """닉네임 일부로 유저를 검색합니다 (관리자 계정 제외). 강제 탈퇴 대상을 찾을 때 사용."""
     return await admin_service.search_users(nickname, page, size, db)
+
+
+@router.get(
+    "/users/{user_id}/reviews", response_model=MyReviewListResponse, summary="유저가 쓴 리뷰 조회"
+)
+async def get_user_reviews(
+    user_id: int,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> MyReviewListResponse:
+    """특정 유저가 작성한 리뷰 목록을 조회합니다 (탈퇴한 유저는 404)."""
+    return await admin_service.get_user_reviews(user_id, page, size, db)
 
 
 @router.get("/banned-accounts", response_model=BannedAccountListResponse, summary="밴 목록 조회")

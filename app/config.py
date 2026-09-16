@@ -107,6 +107,11 @@ class Settings(BaseSettings):
 
     # 완주 인증 반경 (미터)
     COMPLETION_RADIUS_M: int = 300
+    # 완주 인증 최소 소요시간 (초). 기록 저장 자체는 몇 초든 막지 않지만(record/service.py
+    # end_record 참고), 시작/종료 지점이 가까운 짧은 코스에서 GPS 좌표 근접도만으로
+    # 완주 인증이 나면 제자리에서 GPS만 스푸핑해도 순식간에 "완주"로 인정될 수 있어(리뷰
+    # 지적) 완주 인증에는 이 최소 시간도 같이 요구한다
+    COMPLETION_MIN_DURATION_SECONDS: int = 60
 
     # 편의시설 반경 (미터) - 코스 상세 조회 시 이 반경 내 편의시설을 자동 표시.
     # 카카오 키워드 검색 호출 반경으로도 동일하게 사용.

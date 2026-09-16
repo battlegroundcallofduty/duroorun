@@ -41,6 +41,7 @@ def _check_completion(
     course_start_lng: float | None,
     course_end_lat: float | None,
     course_end_lng: float | None,
+    duration_seconds: int,
 ) -> bool:
     """유저의 시작/종료 GPS가 코스 시작/종료 지점 허용 오차 내인지 확인.
 
@@ -48,7 +49,13 @@ def _check_completion(
     유저 종료≈코스 시작) 중 하나라도 만족하면 완주로 인정한다 (해안 트레일 양방향 주행 흔함).
     코스 좌표가 없으면(시드 누락 등) 검증 불가로 보고 미완주 처리한다. 종료 시점에 유저
     위치를 못 가져온 경우(권한 거부, GPS 타임아웃 등)도 동일하게 검증 불가로 처리한다.
+    기록 저장 자체의 최소 시간 제한은 없앴지만(end_record 참고), 완주 인증만큼은 최소
+    소요시간(COMPLETION_MIN_DURATION_SECONDS)도 같이 요구한다 - 시작/종료 지점이 가까운
+    짧은 코스에서 GPS 좌표 근접도만으로는, 제자리에서 좌표만 스푸핑해도 순식간에 완주
+    인증이 날 수 있기 때문(리뷰 지적)
     """
+    if duration_seconds < settings.COMPLETION_MIN_DURATION_SECONDS:
+        return False
     if None in (course_start_lat, course_start_lng, course_end_lat, course_end_lng):
         return False
     if user_end_lat is None or user_end_lng is None:
@@ -146,15 +153,13 @@ async def end_record(
     if record.paused_at is not None:  # 일시정지 중 종료
         record.total_paused_seconds += int((record.ended_at - record.paused_at).total_seconds())
         record.paused_at = None
-    record.duration_seconds = (
-        int((record.ended_at - record.started_at).total_seconds()) - record.total_paused_seconds
+    # 60초 미만이면 기록 자체를 거부했었는데, 그러면 서버는 저장을 안(정확히는 커밋을
+    # 안) 했는데 프론트는 이미 "종료 중" 상태를 벗어나 버려서, 새로고침하면 여전히
+    # "진행 중"으로 남아있는 기록이 다시 나타나는 문제가 있었다(리뷰 지적) - 몇 초든
+    # 종료 버튼을 누르면 그대로 종료·저장되게 바꾸고, 짧은 러닝은 그냥 짧은 기록으로 남긴다
+    record.duration_seconds = max(
+        0, int((record.ended_at - record.started_at).total_seconds()) - record.total_paused_seconds
     )
-    # 시간검증
-    if record.duration_seconds < 60:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="러닝시간이 너무 짧아 기록되지 않았습니다.",
-        )
     if record.duration_seconds > 86400:  # 24시간 초과 시
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -184,6 +189,7 @@ async def end_record(
         course_start_lng=course.start_lng if course_verifiable else None,
         course_end_lat=course.end_lat if course_verifiable else None,
         course_end_lng=course.end_lng if course_verifiable else None,
+        duration_seconds=record.duration_seconds,
     )
     # 완주 시점의 코스 거리를 스냅샷으로 고정 — 이후 courses.distance가 수정돼도
     # 이미 완주한 기록의 누적 거리 통계가 소급으로 바뀌지 않게 하기 위함
@@ -204,6 +210,11 @@ async def end_record(
     elif record.user_end_lat is None or record.user_end_lng is None:
         record.verification_message = (
             "종료 시점 위치를 확인하지 못해 완주 인증이 처리되지 않았어요. "
+            "다만 러닝 기록은 기록할 수 있어요."
+        )
+    elif record.duration_seconds < settings.COMPLETION_MIN_DURATION_SECONDS:
+        record.verification_message = (
+            "러닝 시간이 너무 짧아 완주 인증이 처리되지 않았어요. "
             "다만 러닝 기록은 기록할 수 있어요."
         )
     else:
