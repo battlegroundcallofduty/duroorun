@@ -218,6 +218,8 @@ export default function Home() {
           <div><b>03</b><strong>완주 인증</strong><span>나만의 발자국을 남겨요</span></div>
         </div>
       </section>
+
+      <p className="data-source-note">출처: ⓒ 한국관광공사, 기상청</p>
     </main>
   );
 }

@@ -60,6 +60,7 @@ const Header = () => {
           <NavLink to="/courses" end>코스 찾기</NavLink>
           <NavLink to="/records">러닝 기록</NavLink>
           <NavLink to="/courses/custom/mine">나만의 코스</NavLink>
+          {user?.user_role === 'ADMIN' && <NavLink to="/admin">관리자 페이지</NavLink>}
         </nav>
         <div className="header-actions">
           {user ? (
