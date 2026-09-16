@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { apiFetch } from '../api';
 import Header from '../components/layout/Header';
+import KakaoMap from '../components/map/KakaoMap';
 import { useUser } from '../contexts/UserContext';
 import { DIFFICULTY_LABEL } from '../utils/difficulty';
 import { formatElapsed, formatPace } from '../utils/format';
@@ -39,6 +40,9 @@ const RecordStart = () => {
   const [endFailedIsGps, setEndFailedIsGps] = useState(false);
   // 다른 코스에서 진행 중인 기록이 있을 때, 그 기록 화면으로 바로 이동할 수 있게 위치를 기억해둔다
   const [blockedRecordTarget, setBlockedRecordTarget] = useState(null);
+  // 러닝 중 지도에 표시할 실시간 GPS 위치 - watchPosition 콜백에서만 갱신한다
+  const [livePosition, setLivePosition] = useState(null);
+  const watchIdRef = useRef(null);
 
   // 일시정지 누적 시간(ms)을 로컬에서 직접 추적한다 - 진행 중(pause/resume 시각)엔
   // 여기서 직접 계산하고, 새로고침 등으로 진행 중인 기록을 복구할 때는 checkActiveRecord가
@@ -95,6 +99,7 @@ const RecordStart = () => {
       setBlockedRecordTarget(null);
       setError('');
       setPhase('idle');
+      setLivePosition(null);
       setRecord(null);
       try {
         const res = await apiFetch('/v1/records/?page=1&size=1');
@@ -150,6 +155,28 @@ const RecordStart = () => {
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [phase, record]);
+
+  // 러닝 중(running)일 때만 실시간 위치를 계속 추적해 지도에 표시한다 - 일시정지/종료
+  // 중엔 꺼서 배터리를 아낀다. 위치 추적은 지도 표시용 부가 기능이라, 실패해도(권한
+  // 거부 등) 타이머/일시정지/종료 같은 핵심 기록 기능에는 전혀 영향을 주지 않는다.
+  useEffect(() => {
+    if (phase !== 'running' || !navigator.geolocation) return undefined;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLivePosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        // 조용히 무시 - 지도 표시만 못 할 뿐, 기록 자체는 계속 진행된다
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+    return () => {
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [phase]);
 
   const handleStart = async () => {
     // GPS 응답을 기다리는 동안(최대 10초) 다른 코스 화면으로 이동했을 수 있다 - 같은
@@ -363,6 +390,34 @@ const RecordStart = () => {
     );
   }
 
+  // 러닝 중 지도에 코스 시작/종료 지점을 표시한다 - CourseDetail.jsx와 동일한 로직
+  // (DRNB는 시작/종료 좌표만 있어 마커만, CUSTOM은 경유지가 있어 경로선까지)
+  const courseStartEndMarkers =
+    courseType === 'custom' && course.waypoints?.length > 0
+      ? [
+          { lat: course.waypoints[0].latitude, lng: course.waypoints[0].longitude, label: '시작' },
+          {
+            lat: course.waypoints.at(-1).latitude,
+            lng: course.waypoints.at(-1).longitude,
+            label: '종료',
+          },
+        ]
+      : courseType === 'drnb' && course.has_verification_coords
+        ? [
+            { lat: course.start_lat, lng: course.start_lng, label: '시작' },
+            { lat: course.end_lat, lng: course.end_lng, label: '종료' },
+          ]
+        : [];
+  const courseMapPath =
+    courseType === 'custom'
+      ? (course.waypoints ?? []).map((w) => ({ lat: w.latitude, lng: w.longitude }))
+      : [];
+  // 실시간 위치는 시작/종료 마커와 구분되게 다른 색(빨강)으로 표시한다
+  const liveMarkers = livePosition
+    ? [{ lat: livePosition.lat, lng: livePosition.lng, color: '#ed174c', size: 22, label: '내 위치' }]
+    : [];
+  const hasCourseMapData = courseStartEndMarkers.length > 0;
+
   return (
     <>
       <Header />
@@ -417,6 +472,16 @@ const RecordStart = () => {
             <p className={phase === 'running' ? 'record-hint record-live' : 'record-hint'}>
               {phase === 'paused' ? '일시정지됨' : '러닝 중'}
             </p>
+            {hasCourseMapData && (
+              <KakaoMap
+                path={courseMapPath}
+                markers={[...courseStartEndMarkers, ...liveMarkers]}
+                height="280px"
+              />
+            )}
+            {hasCourseMapData && !livePosition && (phase === 'running' || phase === 'paused') && (
+              <p className="record-hint">내 위치를 찾는 중이에요...</p>
+            )}
             <div className="record-actions">
               {phase === 'running' && (
                 <button
