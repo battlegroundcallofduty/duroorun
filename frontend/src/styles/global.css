@@ -31,6 +31,9 @@ h1 em { font-style:normal; color:var(--blue); }
 .primary-button { background:var(--green); color:white; padding:16px 22px; border-radius:4px; box-shadow:0 8px 20px rgba(13,177,75,.18); }
 .primary-button.danger-button { background:var(--red); box-shadow:none; }
 .primary-button span { margin-left:25px; }
+/* primary-button과 나란히 놓는 보조 액션 - 폼 안의 .course-form-actions .secondary-button은
+   더 작은 크기로 스코프된 규칙이 따로 있어 여기선 겹치지 않는다(그쪽이 우선 적용됨) */
+.secondary-button { display:inline-flex; align-items:center; justify-content:center; border:1px solid #dadce0; background:#fff; color:var(--ink); border-radius:4px; padding:16px 22px; font-size:15px; text-decoration:none; cursor:pointer; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; }
 /* .primary-button도 <a>(Link)뿐 아니라 <button>(리뷰 등록 등)으로도 쓰이는데, 이 기본
    규칙엔 cursor가 없어서 일부 컨텍스트(review-form 등)는 화살표 커서로 남아있었다 -
    여기서 한 번에 맞춰준다 (다른 곳에서 이미 개별로 cursor:pointer 준 곳은 중복이라도 무해) */
@@ -237,13 +240,15 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .admin-pagination button:disabled { opacity:.5; cursor:not-allowed; }
 .admin-pagination-ellipsis { padding:0 4px; color:#82928e; }
 
-/* 공용 모달 오버레이 (프로필 사진 원본 보기, 내 리뷰 관리 등) */
+/* 공용 모달 오버레이 (프로필 사진 원본 보기, 내 리뷰 관리, 커스텀 코스 저장 완료 등) */
 .modal-overlay { position:fixed; inset:0; background:rgba(16,42,43,.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:24px; }
 .modal-image { max-width:min(90vw,480px); max-height:80vh; border-radius:12px; object-fit:contain; }
 .modal-close { position:absolute; top:24px; right:24px; width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,.15); color:#fff; font-size:22px; cursor:pointer; }
 /* 리뷰 내용이 길면 좁은 폭(360px) 때문에 줄바꿈이 많아져 세로로 길게 늘어져
-   가독성이 떨어졌다 - 다른 콘텐츠 위주 모달(weather-modal-card 등)만큼 넓힌다 */
-.review-modal-card { position:relative; width:100%; max-width:800px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; }
+   가독성이 떨어졌다 - 다른 콘텐츠 위주 모달(weather-modal-card 등)만큼 넓힌다.
+   font-family도 weather-modal-card와 동일하게 명시 - 없으면 body의 Gangwon(제목용,
+   semibold만 있음)을 물려받아 본문 글자가 어긋나 보인다 */
+.review-modal-card { position:relative; width:100%; max-width:800px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; }
 .review-modal-card h2 { font-size:18px; margin:0 0 10px; }
 .review-modal-card > p { color:#5c706c; font-size:14px; margin:0; }
 .review-modal-card .review-list { margin-top:16px; }
@@ -252,6 +257,12 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
    링크에는 다른 형제 요소(뱃지)와 나란히 붙도록 별도 margin을 주지 않는다 */
 .review-modal-card .review-item-header .text-button { padding-bottom:0; border-bottom:0; }
 .review-modal-close { position:static; margin:0 0 12px auto; display:block; background:#f1f1ee; color:var(--ink); }
+/* 코스 저장 완료 모달 - 제목 한 줄 + 안내문 한 줄 + 버튼 2개뿐이라, 리뷰 목록처럼 긴
+   내용이 필요 없다. review-modal-card(800px, 리뷰 텍스트용으로 넓힘)를 그대로 쓰면
+   내용에 비해 옆으로 휑하게 넓어 보여서 weather-modal-card와 같은 폭의 전용 클래스로 뺀다 */
+.course-saved-modal-card { position:relative; width:100%; max-width:420px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:center; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; }
+.course-saved-modal-card h2 { font-size:18px; margin:0 0 10px; }
+.course-saved-modal-card > p { color:#5c706c; font-size:14px; margin:0; }
 .weather-modal-card { position:relative; width:100%; max-width:420px; max-height:80vh; overflow-y:auto; background:#fff; border-radius:16px; padding:32px; text-align:left; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; }
 .weather-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; }
 .weather-modal-card h2 { font-size:18px; margin:0; }
