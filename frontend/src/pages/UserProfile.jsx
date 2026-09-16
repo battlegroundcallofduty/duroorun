@@ -137,6 +137,9 @@ const UserProfile = () => {
   const [deleteReviewError, setDeleteReviewError] = useState('');
 
   const handleDeleteReview = async (review) => {
+    // 다른 리뷰 삭제가 진행 중이면 무시 - 동시 삭제 시 deletingReviewId가 서로 덮어써서
+    // 아직 처리 중인 요청의 버튼이 풀려버리는 걸 막기 위해 한 번에 하나만 처리(리뷰 지적)
+    if (deletingReviewId != null) return;
     if (!window.confirm('이 리뷰를 삭제할까요? 되돌릴 수 없어요.')) return;
     setDeletingReviewId(review.review_id);
     setDeleteReviewError('');
@@ -288,18 +291,24 @@ const UserProfile = () => {
                     {reviews.map((review) => (
                       <li key={review.review_id} className="admin-banned-item">
                         <div>
-                          <Link
-                            to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
-                          >
-                            {review.course_name}
-                          </Link>
+                          {/* 코스가 비활성화(삭제)되면 상세 API가 404라 링크를 걸면 안 됨
+                              (MyPage.jsx의 "내가 쓴 리뷰"와 동일한 처리, 리뷰 지적) */}
+                          {(review.course_is_active ?? true) ? (
+                            <Link
+                              to={`/courses/${review.course_type.toLowerCase()}/${review.course_id}`}
+                            >
+                              {review.course_name}
+                            </Link>
+                          ) : (
+                            <span aria-disabled="true">{review.course_name} (삭제된 코스)</span>
+                          )}
                           <span>{review.content}</span>
                         </div>
                         <button
                           type="button"
                           className="admin-unban-button"
                           onClick={() => handleDeleteReview(review)}
-                          disabled={deletingReviewId === review.review_id}
+                          disabled={deletingReviewId != null}
                         >
                           {deletingReviewId === review.review_id ? '처리 중...' : '삭제'}
                         </button>
@@ -312,7 +321,11 @@ const UserProfile = () => {
                     {reviewsLoadMoreError && (
                       <p className="course-list-status error">{reviewsLoadMoreError}</p>
                     )}
-                    <button type="button" onClick={loadMoreReviews} disabled={reviewsLoadingMore}>
+                    <button
+                      type="button"
+                      onClick={loadMoreReviews}
+                      disabled={reviewsLoadingMore || deletingReviewId != null}
+                    >
                       {reviewsLoadingMore
                         ? '불러오는 중...'
                         : reviewsLoadMoreError
