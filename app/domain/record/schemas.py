@@ -16,10 +16,14 @@ class RecordStartRequest(BaseModel):
 
 
 class RecordEndRequest(BaseModel):
-    """러닝종료: 종료 눌렀을 때 보내는 데이터"""
+    """러닝종료: 종료 눌렀을 때 보내는 데이터.
 
-    user_end_lat: float = Field(ge=-90, le=90)
-    user_end_lng: float = Field(ge=-180, le=180)
+    종료 시점에 위치를 못 가져온 경우(권한 거부, GPS 타임아웃 등)에도 기록 자체는
+    저장할 수 있게 좌표를 선택 사항으로 둔다 - 이 경우 완주 인증만 처리되지 않는다.
+    """
+
+    user_end_lat: float | None = Field(default=None, ge=-90, le=90)
+    user_end_lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class RecordResponse(BaseModel):
