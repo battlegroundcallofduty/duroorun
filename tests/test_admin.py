@@ -624,3 +624,48 @@ async def test_force_withdraw_user_without_nickname_leaves_banned_nickname_none(
     ).scalar_one()
     ctx.banned_ids.append(banned.id)
     assert banned.banned_nickname is None
+
+
+# 25. 관리자 - 특정 유저가 쓴 리뷰 목록 조회 (get_my_reviews를 그대로 재사용)
+async def test_get_user_reviews_returns_that_users_reviews(db_session, ctx):
+    user, _ = await _make_user_with_social(db_session, ctx)
+    other_user, _ = await _make_user_with_social(db_session, ctx)
+    course = Course(
+        course_type=CourseType.CUSTOM,
+        course_name=f"pytest-course-{uuid.uuid4().hex[:8]}",
+        created_by=user.user_id,
+    )
+    db_session.add(course)
+    await db_session.flush()
+    ctx.course_ids.append(course.course_id)
+
+    db_session.add(
+        Review(
+            user_id=user.user_id,
+            course_id=course.course_id,
+            content="pytest 리뷰",
+            difficulty="NORMAL",
+        )
+    )
+    db_session.add(
+        Review(
+            user_id=other_user.user_id,
+            course_id=course.course_id,
+            content="다른 유저 리뷰",
+            difficulty="EASY",
+        )
+    )
+    await db_session.commit()
+
+    result = await admin_service.get_user_reviews(user.user_id, 1, 20, db_session)
+
+    assert result.total == 1
+    assert result.items[0].content == "pytest 리뷰"
+
+
+# 26. 관리자 - 존재하지 않거나 탈퇴한 유저의 리뷰 조회는 404
+async def test_get_user_reviews_nonexistent_user_returns_404(db_session):
+    with pytest.raises(HTTPException) as exc_info:
+        await admin_service.get_user_reviews(999_999_999, 1, 20, db_session)
+
+    assert exc_info.value.status_code == 404

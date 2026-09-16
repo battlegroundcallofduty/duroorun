@@ -38,6 +38,9 @@ class ReviewResponse(BaseModel):
 
     review_id: int
     user_id: int | None
+    # 코스 리뷰 목록(get_reviews)에서만 채워짐(User와 조인) - 작성자 프로필 링크 대신
+    # 닉네임을 바로 보여주기 위함(요청 반영). 그 외 응답(작성/수정 직후 등)은 계속 None
+    nickname: str | None = None
     course_id: int
     content: str
     difficulty: Difficulty

@@ -8,6 +8,7 @@ get_reviews 서비스 함수 자체는 애초에 user 매개변수를 받지 않
 
 from httpx import ASGITransport, AsyncClient
 
+from app.domain.user.models import User
 from app.main import app
 from tests.conftest import add_completed_reviews
 
@@ -25,3 +26,17 @@ async def test_get_reviews_succeeds_without_auth_header(db_session, review_test_
     data = res.json()
     assert data["total"] == 1
     assert len(data["items"]) == 1
+
+
+async def test_get_reviews_includes_author_nickname(db_session, review_test_course):
+    """리뷰 목록 응답에 작성자 닉네임이 포함된다 (프로필 링크 대신 바로 표시하기 위함)."""
+    await add_completed_reviews(db_session, review_test_course, count=1)
+    course_id = review_test_course.course_id
+    author = await db_session.get(User, review_test_course.user_ids[0])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(f"/api/v1/reviews/courses/{course_id}?offset=0&size=20")
+
+    assert res.status_code == 200
+    assert res.json()["items"][0]["nickname"] == author.nickname
