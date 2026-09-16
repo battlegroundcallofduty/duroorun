@@ -127,7 +127,7 @@ h2 { font-size:36px; letter-spacing:-1.5px; margin:8px 0 0; line-height:1.25; }
 .login-desc,.onboarding-desc { color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:14px; margin:0 0 28px; }
 .login-error { background:#fdecee; color:var(--red); font-size:13px; padding:10px 14px; border-radius:8px; margin:0 0 20px; }
 .login-buttons { display:flex; flex-direction:column; gap:12px; }
-.demo-admin-toggle { display:block; margin:20px auto 0; font-size:12px; color:#9aa9a5; }
+.demo-admin-toggle { display:block; margin:20px auto 0; font-size:18px; color:#9aa9a5; }
 .demo-admin-form { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
 .demo-admin-form input { padding:12px 14px; border:1px solid #d7ded9; border-radius:8px; font-size:14px; }
 .social-button { border:0; border-radius:8px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; }
