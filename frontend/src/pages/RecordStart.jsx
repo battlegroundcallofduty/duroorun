@@ -24,14 +24,19 @@ const getPosition = () =>
 // 실제로는 실패"하는 오해가 생길 수 있어(리뷰 지적), 성공 확인 후에만 들리게 한다.
 // 그런데 Safari/iOS(WebKit)는 play()가 유저 제스처의 동기 호출 스택 안에서 호출된
 // 경우에만 자동재생 정책을 통과시킨다 - 성공 확인(await 이후)까지 기다렸다가 처음
-// play()를 호출하면 막혀버린다. 그래서 클릭 즉시 볼륨 0으로 한 번 "예열" 재생만 해
-// 제스처 요건을 만족시켜두고(사용자에게는 안 들림), 실제 성공이 확인된 뒤 같은
-// <audio> 엘리먼트를 볼륨 1로 처음부터 다시 재생한다 - 한 번 유저 제스처로 재생
-// 이력이 생긴 엘리먼트는 이후 비동기로 다시 play()해도 추가 제스처 없이 허용된다.
+// play()를 호출하면 막혀버린다. 그래서 클릭 즉시 한 번 "예열" 재생만 해 제스처 요건을
+// 만족시켜두고(사용자에게는 안 들림), 실제 성공이 확인된 뒤 같은 <audio> 엘리먼트를
+// 처음부터 다시 재생한다 - 한 번 유저 제스처로 재생 이력이 생긴 엘리먼트는 이후
+// 비동기로 다시 play()해도 추가 제스처 없이 허용된다.
+// 예열 시 무음 처리는 volume이 아니라 muted로 한다 - iOS Safari는 HTMLMediaElement의
+// volume을 JS로 설정해도 적용되지 않는(하드웨어 볼륨 버튼으로만 제어) 문서화된 제한이
+// 있어(https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/Using_HTML5_Audio_Video/Device-SpecificConsiderations/Device-SpecificConsiderations.html),
+// volume=0으로는 아이폰에서 예열 단계 소리를 막지 못한다(리뷰 지적). muted는 iOS에서도
+// JS로 정상 제어된다고 알려진 속성이라 이걸 대신 쓴다.
 const primeSound = (src) => {
   try {
     const audio = new Audio(src);
-    audio.volume = 0;
+    audio.muted = true;
     audio.play().catch(() => {});
     return audio;
   } catch {
@@ -43,7 +48,7 @@ const revealSound = (audio) => {
   if (!audio) return;
   try {
     audio.currentTime = 0;
-    audio.volume = 1;
+    audio.muted = false;
     audio.play().catch(() => {});
   } catch {
     // 조용히 무시
