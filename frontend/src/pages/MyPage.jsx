@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { apiFetch } from '../api';
+import { apiFetch, clearAccessToken } from '../api';
 import DifficultyPicker from '../components/DifficultyPicker';
 import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
@@ -36,6 +36,8 @@ const MyPage = () => {
   const [message, setMessage] = useState('');
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
 
   const [myReviews, setMyReviews] = useState([]);
   // 모달을 열기 전엔 로딩 상태가 아니므로 초기값은 false (RecordHistory.jsx와 다른 부분)
@@ -560,6 +562,28 @@ const MyPage = () => {
     }
   };
 
+  const handleWithdraw = async () => {
+    if (!window.confirm('정말 탈퇴하시겠어요? 되돌릴 수 없어요.')) return;
+    setWithdrawing(true);
+    setWithdrawError('');
+    try {
+      const res = await apiFetch('/v1/users/me', { method: 'DELETE' });
+      if (!res.ok) {
+        setWithdrawError('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+      // 로그아웃과 동일하게 클라이언트 쪽 인증 상태 정리 후 홈으로 이동
+      clearAccessToken();
+      setUser(null);
+      navigate('/', { replace: true });
+    } catch (err) {
+      console.error('회원 탈퇴 실패:', err);
+      setWithdrawError('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   return (
     <>
       <Header />
@@ -654,6 +678,18 @@ const MyPage = () => {
             <button type="button" className="mypage-review-button" onClick={() => setIsReviewOpen(true)}>
               내 리뷰 관리<span>→</span>
             </button>
+
+            <div className="mypage-withdraw">
+              {withdrawError && <p className="onboarding-error">{withdrawError}</p>}
+              <button
+                type="button"
+                className="text-button danger-text-button"
+                onClick={handleWithdraw}
+                disabled={withdrawing}
+              >
+                {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+              </button>
+            </div>
           </>
         )}
       </main>
