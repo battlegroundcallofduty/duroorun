@@ -1,7 +1,7 @@
 """러닝 기록 - DB 제약 검증 및 서비스 로직(삭제 권한) 검증."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -12,7 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from app.core.security import create_access_token
 from app.domain.course.models import Course
 from app.domain.record.models import Record
-from app.domain.record.service import delete_record, get_my_record_stats
+from app.domain.record.schemas import RecordEndRequest
+from app.domain.record.service import delete_record, end_record, get_my_record_stats
 from app.domain.user.models import User
 from app.main import app
 from app.redis import close_redis
@@ -219,6 +220,50 @@ async def test_in_progress_record_without_ended_at_saves_normally(db_session):
     await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
     await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
     await db_session.commit()
+
+
+async def test_end_record_without_user_end_coords_saves_but_not_completed(db_session):
+    """종료 시점 위치를 못 가져왔어도(권한 거부/GPS 타임아웃) 기록은 저장되고, 완주
+    인증만 안 되며 그 사유가 verification_message로 안내된다(요청 반영)."""
+    course = await _make_course(db_session)
+    course.start_lat, course.start_lng = 1.0, 1.0
+    course.end_lat, course.end_lng = 2.0, 2.0
+    owner = User(nickname=f"pytest-owner-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    record = Record(
+        user_id=owner.user_id,
+        course_id=course.course_id,
+        # 60초 미만이면 "러닝시간이 너무 짧아" 검증에 걸려버리므로 여유를 둔다
+        started_at=datetime.now(UTC) - timedelta(seconds=90),
+        ended_at=None,
+        is_completed=False,
+        user_start_lat=1.0,
+        user_start_lng=1.0,
+    )
+    db_session.add(record)
+    await db_session.commit()
+    await db_session.refresh(record)
+
+    try:
+        result = await end_record(
+            session=db_session,
+            user_id=owner.user_id,
+            record_id=record.record_id,
+            body=RecordEndRequest(user_end_lat=None, user_end_lng=None),
+        )
+        assert result.is_completed is False
+        assert result.verification_message == (
+            "종료 시점 위치를 확인하지 못해 완주 인증이 처리되지 않았어요. "
+            "다만 러닝 기록은 기록할 수 있어요."
+        )
+        assert result.duration_seconds is not None
+    finally:
+        await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
 
 
 async def test_get_my_record_stats_sums_only_completed_records(db_session):

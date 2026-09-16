@@ -390,6 +390,8 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
 .record-hint { color:#5c706c; font-family:'Apple SD Gothic Neo',sans-serif; font-size:13px; margin:0; }
 .record-live { color:var(--red); animation:record-blink 1s step-start infinite; }
 @keyframes record-blink { 50% { opacity:0; } }
+.button-spinner { display:inline-block; width:14px; height:14px; margin-right:8px; vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:button-spin .7s linear infinite; }
+@keyframes button-spin { to { transform:rotate(360deg); } }
 .record-timer { font-size:56px; font-weight:700; letter-spacing:-1px; color:var(--ink); font-variant-numeric:tabular-nums; }
 .record-actions { display:flex; align-items:center; gap:20px; }
 .record-start-button, .record-end-button { border:0; border-radius:8px; cursor:pointer; padding:14px 28px; font-size:15px; }

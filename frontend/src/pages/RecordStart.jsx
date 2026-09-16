@@ -34,10 +34,6 @@ const RecordStart = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState('');
   const [blockedMessage, setBlockedMessage] = useState('');
-  // end_failed 화면에서 "기록이 저장되지 않았어요"를 보여줄지 판단하는 데 쓴다. GPS
-  // 실패는 서버에 종료 요청 자체가 안 나간 것이라 기록이 여전히 멀쩡히 진행 중이므로,
-  // 저장 실패와 다른 안내를 보여준다.
-  const [endFailedIsGps, setEndFailedIsGps] = useState(false);
   // 다른 코스에서 진행 중인 기록이 있을 때, 그 기록 화면으로 바로 이동할 수 있게 위치를 기억해둔다
   const [blockedRecordTarget, setBlockedRecordTarget] = useState(null);
   // 러닝 중 지도에 표시할 실시간 GPS 위치 - watchPosition 콜백에서만 갱신한다
@@ -308,29 +304,23 @@ const RecordStart = () => {
     setError('');
     setPhase('ending');
 
-    let position;
+    // 종료 시점 위치를 못 가져와도(권한 거부, GPS 타임아웃 등) 기록 자체는 저장할 수
+    // 있게 한다 - 더 이상 여기서 막지 않고, 좌표 없이 진행한다. 완주 인증만 처리되지
+    // 않고 그 사유는 백엔드가 verification_message로 안내해준다(요청 반영).
+    let position = null;
     try {
       position = await getPosition();
     } catch {
-      if (isStale()) return;
-      // GPS 실패 자체는 이번 시도가 서버에 안 나간 것이지만, "다시 시도" 흐름에서는
-      // 이전 시도가 이미 서버에 성공했을 수 있다(응답만 유실됐던 경우) - 그 경우까지
-      // "기록은 계속 진행 중"이라고 잘못 안내하지 않도록 먼저 실제 결과를 확인한다
-      if (await tryShowActualResult(requestedRecordId, isStale)) return;
-      setError('위치 정보를 가져올 수 없어요. 위치 권한을 확인해주세요.');
-      setEndFailedIsGps(true);
-      setPhase('end_failed');
-      return;
+      // 조용히 무시 - 좌표 없이 종료 요청을 계속 진행한다
     }
     if (isStale()) return;
-    setEndFailedIsGps(false);
 
     try {
       const res = await apiFetch(`/v1/records/${requestedRecordId}/end`, {
         method: 'PATCH',
         body: JSON.stringify({
-          user_end_lat: position.coords.latitude,
-          user_end_lng: position.coords.longitude,
+          user_end_lat: position?.coords.latitude ?? null,
+          user_end_lng: position?.coords.longitude ?? null,
         }),
       });
       if (isStale()) return;
@@ -507,7 +497,14 @@ const RecordStart = () => {
                 onClick={handleEnd}
                 disabled={phase === 'ending'}
               >
-                {phase === 'ending' ? '종료 중...' : '러닝 종료'}
+                {phase === 'ending' ? (
+                  <>
+                    <span className="button-spinner" aria-hidden="true" />
+                    종료 중...
+                  </>
+                ) : (
+                  '러닝 종료'
+                )}
               </button>
             </div>
           </div>
@@ -516,9 +513,9 @@ const RecordStart = () => {
         {phase === 'end_failed' && (
           <div className="record-start-panel record-result">
             <div className="record-timer">{formatElapsed(elapsedSeconds)}</div>
-            <p className="record-hint">
-              {endFailedIsGps ? '위치 확인에 실패했어요. 기록은 계속 진행 중이에요.' : '기록이 저장되지 않았어요'}
-            </p>
+            {/* GPS 실패는 더 이상 여기로 오지 않는다(좌표 없이 종료 진행) - 이 화면은
+                실제 저장(네트워크/서버) 실패일 때만 보여진다 */}
+            <p className="record-hint">기록이 저장되지 않았어요</p>
             <div className="review-item-actions">
               <button type="button" className="primary-button record-end-button" onClick={handleEnd}>
                 다시 시도
