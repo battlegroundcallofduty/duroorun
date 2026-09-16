@@ -40,7 +40,7 @@
 
 | 토큰 | 만료 | 저장 위치 | 전송 방식 |
 |------|------|----------|----------|
-| Access Token | 30분 | 클라이언트 localStorage | 응답 body(JSON) + 요청 시 `Authorization: Bearer` 헤더 |
+| Access Token | 30분 | 클라이언트 sessionStorage (브라우저 종료 시 로그아웃) | 응답 body(JSON) + 요청 시 `Authorization: Bearer` 헤더 |
 | Refresh Token | 14일 | httpOnly 쿠키 (`/api/v1/auth/refresh` 경로 한정) | `Set-Cookie` |
 
 - **세션 정책**: 유저당 Refresh Token 1개 (Redis `refresh:{user_id}`). 재발급 시 기존 토큰을 새 토큰으로 교체(로테이션)
@@ -87,7 +87,7 @@
 
 **두루누비 API 연동**
 - 코스 목록/상세에 필요한 정보(`course_name`, `difficulty`, `estimated_time`, `sigun`, `brd_div`, GPX 좌표, 거리, 설명)를 시드 스크립트가 배치로 조회해 DB에 저장. 요청 시점에 두루누비 API를 실시간 호출하지 않음 (API 장애와 무관하게 조회 동작 보장)
-- 데이터 최신화 주기 = 시드 스크립트 재실행 주기
+- 데이터 최신화 주기 = 시드 스크립트 재실행 주기. 운영 서버는 `app/scheduler.py`가 매일 08:00(두루누비 원본 데이터 갱신 시각인 07:30 이후)에 자동 실행하여 최신화(실패 시 최대 3회 재시도, 최종 실패 시 디스코드 알림) — 한국관광공사 승인받은 로컬 DB 저장 방식(`docs/` 참고)의 동기화 계획과 동일
 - 모든 필터는 DB 값 기준으로 적용
 - **현재 수집 범위**: 트레일 종류 무관하게 두루누비 코스 전체를 가져와서, 그중 `sigun`이 "강원"으로 시작하는 것만 DB에 저장 (`app/scripts/seed_courses.py`의 `_TARGET_REGION`). 강원 코스는 해파랑길 + DMZ 평화의 길 2개 트레일만 존재.
 - **서비스 지역 확장 결정 (2026-08-27)**: 관광콘텐츠 공모전이기 때문에, 서비스 대상 지역을 "강원 해안 6개 시군(삼척~고성)"이 아니라 **강원도 전체**로 넓히기로 팀 결정.

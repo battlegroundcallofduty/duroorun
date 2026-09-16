@@ -218,7 +218,7 @@ alembic upgrade head  # 로컬 반영
 | image_url | VARCHAR | 이미지 URL |
 | created_at | TIMESTAMP | 등록일 |
 
-> 리뷰당 최대 5장, 장당 2MB 제한
+> 리뷰당 최대 5장, 장당 5MB 제한
 
 ---
 
@@ -316,10 +316,10 @@ reviews        ──< review_images
 | 항목 | 내용 |
 |------|------|
 | ~~두루누비 코스 이미지~~ |`courseList` 응답 필드 실측 확인 결과 이미지 필드 없음. DRNB 코스 이미지는 API 미제공 — 일단 `course_images`는 CUSTOM 코스 전용 유지 |
-| GPX URL 접근 방식 | 시드 스크립트 작성 시 `gpxpath` URL에 직접 GET 가능한지 / 별도 인증 헤더 필요한지 확인 필요 |
+| ~~GPX URL 접근 방식~~ | (해결) `gpxpath` URL에 인증 헤더 없이 직접 GET 가능함을 확인, `gpxpy`로 파싱해 시작/종료 좌표 추출 (`app/scripts/seed_courses.py`) |
 | 인덱스 추가 | 각 도메인 작업 시 조회 패턴에 맞춰 인덱스 추가 검토 (예: `records.user_id`, `records.course_id`, `records.is_completed`, `courses.course_type/sigun/difficulty`) |
 | ~~`facilities.facility_type` 데이터 소스~~ | (해결, 2026-09-14 갱신) `RESTROOM`/`PARKING`/`OTHERS`(편의점) 전부 카카오 로컬 API 키워드 검색(`sync_nearby_facilities`). 원래 `PARKING`은 한국교통안전공단 공공API였으나 서버가 무작위로 응답을 못 주는 문제(~20% 확률)로 카카오 방식으로 전환 - 공공API 코드는 지우지 않고 남겨뒀지만 운영 스케줄러에는 등록 안 함, 필요할 때 수동 실행만 가능. `LOCKER`는 대응 API 없어 관리자 수동 등록만. 상세는 FEATURES.md 섹션 6 참고 |
-| AI 날씨·안전 브리핑 캐시 저장 위치 | Redis(기존 세션/OAuth용 인스턴스 재사용) vs 별도 테이블 — 캐시 키(지역 단위)/TTL(3시간) 설계와 함께 구현 시 결정 필요 |
+| ~~AI 날씨·안전 브리핑 캐시 저장 위치~~ | (해결) 기존 Redis 인스턴스 재사용으로 결정·구현 완료. 예보 요약(격자 단위, 3시간) / 특보 원문(전역 1개, 5분) / 특보-지역 관련성 코멘트(시군+특보해시 단위, 1시간)로 캐시 키·TTL을 분리해 각각 캐싱 (`app/domain/course/weather_service.py`) |
 
 ---
 

@@ -13,6 +13,8 @@ from app.domain.admin.schemas import (
     ForceWithdrawRequest,
     UserSearchListResponse,
 )
+from app.domain.review import service as review_service
+from app.domain.review.schemas import MyReviewListResponse
 from app.domain.user.models import User
 from app.domain.user.schemas import MessageResponse
 from app.redis import get_redis
@@ -43,6 +45,27 @@ async def search_users(
 ) -> UserSearchListResponse:
     """닉네임 일부로 유저를 검색합니다 (관리자 계정 제외). 강제 탈퇴 대상을 찾을 때 사용."""
     return await admin_service.search_users(nickname, page, size, db)
+
+
+@router.get(
+    "/users/{user_id}/reviews",
+    response_model=MyReviewListResponse,
+    summary="유저 작성 리뷰 목록 조회",
+)
+async def get_user_reviews(
+    user_id: int,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> MyReviewListResponse:
+    """관리자가 특정 유저가 작성한 리뷰 목록을 조회합니다 (부적절한 리뷰 삭제 대상 확인용).
+
+    리뷰 도메인의 get_my_reviews를 그대로 재사용 - 원래도 임의의 user_id를 받을 수
+    있게 되어 있었고(마이페이지 라우터에서만 본인 것으로 고정해 호출), 로직 중복 없이
+    그대로 쓸 수 있다. 삭제는 기존 DELETE /reviews/{review_id}가 이미 관리자를 허용한다.
+    """
+    return await review_service.get_my_reviews(session=db, user_id=user_id, page=page, size=size)
 
 
 @router.get("/banned-accounts", response_model=BannedAccountListResponse, summary="밴 목록 조회")
