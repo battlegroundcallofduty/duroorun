@@ -4,14 +4,21 @@
 docker compose exec backend python -m app.scripts.seed_dummy_data
 ㅡ 도커 아닌 로컬용 명령어: python -m app.scripts.seed_dummy_data
 ㅡ admin 계정(닉네임 "kitty")은 제외. 나머지 7개 계정에 완주 기록/리뷰를 배분해서
-  인기 코스(완주 횟수 기준) 랭킹에 "해파랑길 30코스"가 DRNB 1위로 뜨도록 맞춤.
+  지정한 DRNB 코스 3개("해파랑길 30/31/41코스")와 CUSTOM 코스 3개에 데모용 완주
+  기록을 채운다. 완주 횟수를 30>31>41코스 순으로 넣어두지만, 이 스크립트가 건드리지
+  않는 다른 코스에 이미 완주 기록이 더 많으면 실제 인기 코스 랭킹은 달라질 수 있다 -
+  마지막에 실제 랭킹 조회와 동일한 방식으로 최종 순위를 로그로 찍어서 확인한다
+  (코드리뷰 반영: 목표 코스들끼리의 건수 비교만으론 "1위 보장"이라 할 수 없음).
 ㅡ CUSTOM 코스가 아직 하나도 없어서, 실제 서비스 로직(create_course)을 그대로 호출해
   3개 새로 만듦 (강원도 경계 검증/시군 계산/편의시설 동기화까지 정상 처리됨).
 ㅡ 목표 완주 건수는 "기존 완주 기록 + 이번에 추가하는 건수"의 합계 기준.
   기존에 이미 완주 기록이 있으면 그만큼 덜 추가해서 목표 총합을 맞춘다
   (코드리뷰 반영: 무작위 배분이 기존 기록을 고려 안 하면 목표 순위가 어긋날 수 있음).
-ㅡ CUSTOM 코스는 이름으로 기존 코스를 먼저 찾고 없을 때만 생성 - 도중에 실패해도
-  재실행 시 이미 만든 코스는 재사용하고 이어서 완주 기록만 채운다 (재실행 가능).
+ㅡ CUSTOM 코스는 (이름, 제작자) 기준으로 기존 코스를 먼저 찾고 없을 때만 생성 -
+  도중에 실패해도 재실행 시 이미 만든 코스는 재사용하고 이어서 완주 기록만 채운다.
+  동일 (이름, 제작자) 조합이 여러 개 나오면 어느 걸 재사용할지 알 수 없으므로
+  예외를 던지고 중단한다 (코드리뷰 반영: 이름만으로 찾으면 다른 유저가 만든
+  동명의 코스를 잘못 재사용할 위험이 있음).
 """
 
 import asyncio
@@ -165,24 +172,38 @@ async def _count_completions(session, course_id: int) -> int:
 
 
 async def _get_or_create_custom_course(session, users: dict[str, User], spec: dict) -> Course:
-    """이름으로 기존 CUSTOM 코스를 먼저 찾고, 없을 때만 새로 만든다.
+    """(이름, 제작자) 기준으로 기존 CUSTOM 코스를 먼저 찾고, 없을 때만 새로 만든다.
 
     ㅡ create_course()는 내부에서 즉시 커밋하므로, 중간에 실패해도 앞서 만든 코스는
       DB에 남는다. 재실행 시 이미 만든 코스를 중복 생성하지 않고 재사용하기 위함
       (코드리뷰 반영: 부분 실패 후 재실행하면 CUSTOM 코스가 중복 생성되는 문제).
+    ㅡ 이름만으로 찾으면 다른 유저가 우연히 같은 이름으로 만든 실제 코스를 잘못
+      재사용할 수 있어 created_by까지 조건에 넣는다. 그래도 동일 (이름, 제작자)가
+      여러 개 나오면 어떤 걸 재사용할지 자동으로 판단하지 않고 예외로 중단한다
+      (코드리뷰 반영).
     """
     course_name = spec["request"].course_name
+    creator = users[spec["creator_nickname"]]
     existing = await session.execute(
         select(Course).where(
-            Course.course_name == course_name, Course.course_type == CourseType.CUSTOM
+            Course.course_name == course_name,
+            Course.course_type == CourseType.CUSTOM,
+            Course.created_by == creator.user_id,
         )
     )
-    course = existing.scalar_one_or_none()
-    if course is not None:
+    matches = list(existing.scalars().all())
+    if len(matches) > 1:
+        ids = [c.course_id for c in matches]
+        raise RuntimeError(
+            f"'{course_name}'(제작자={spec['creator_nickname']}) 이름의 CUSTOM 코스가 "
+            f"이미 여러 개 있습니다 (course_id={ids}). 어느 코스를 데모용으로 쓸지 "
+            "직접 확인하고 스크립트에서 course_id를 지정해주세요."
+        )
+    if matches:
+        course = matches[0]
         logger.info("CUSTOM 코스 이미 존재, 재사용: %s (course_id=%s)", course_name, course.course_id)
         return course
 
-    creator = users[spec["creator_nickname"]]
     response = await create_course(session, creator.user_id, spec["request"])
     course = await session.get(Course, response.course_id)
     logger.info(
@@ -308,8 +329,8 @@ async def seed() -> None:
 
         logger.info("완주 기록 %d건, 리뷰 %d건 생성 완료", len(records), len(reviews))
 
-        # 4) 최종 집계 확인 - 기존 기록까지 합쳐서 실제로 목표 순위대로 나왔는지 로그로 검증
-        logger.info("=== 최종 완주 건수 (기존 + 이번 추가분 합계) ===")
+        # 4) 대상 코스들의 최종 건수 (목표치를 넘지 않고 잘 채워졌는지만 확인 - 순위 보장 아님)
+        logger.info("=== 대상 코스 최종 완주 건수 ===")
         for target in DRNB_TARGETS:
             course = drnb_courses[target["course_name"]]
             total = await _count_completions(session, course.course_id)
@@ -317,6 +338,46 @@ async def seed() -> None:
         for spec, course in zip(CUSTOM_COURSES, custom_courses, strict=True):
             total = await _count_completions(session, course.course_id)
             logger.info("%s: %d건 (목표 %d건)", course.course_name, total, spec["completions"])
+
+        # 5) 진짜 인기 코스 랭킹 재현 (get_popular_courses와 동일한 정렬 기준) -
+        # 대상 코스 외에 완주가 더 많은 코스가 있으면 여기서 드러난다.
+        await _log_real_ranking(session, CourseType.DRNB)
+        await _log_real_ranking(session, CourseType.CUSTOM)
+
+
+async def _log_real_ranking(session, course_type: CourseType, top_n: int = 5) -> None:
+    review_count_subquery = (
+        select(func.count(Review.review_id))
+        .where(Review.course_id == Course.course_id)
+        .correlate(Course)
+        .scalar_subquery()
+    )
+    query = (
+        select(
+            Course.course_id,
+            Course.course_name,
+            func.count(Record.record_id).label("completion_count"),
+        )
+        .join(Record, Record.course_id == Course.course_id)
+        .where(Record.is_completed.is_(True), Course.course_type == course_type)
+        .group_by(Course.course_id, Course.course_name)
+        .order_by(
+            func.count(Record.record_id).desc(),
+            review_count_subquery.desc(),
+            Course.course_id.asc(),
+        )
+        .limit(top_n)
+    )
+    rows = (await session.execute(query)).all()
+    logger.info("=== 실제 인기 코스 랭킹 재현 (%s, 완주 횟수 기준 상위 %d) ===", course_type, top_n)
+    for rank, row in enumerate(rows, start=1):
+        logger.info(
+            "%d위: %s (course_id=%s, 완주 %d건)",
+            rank,
+            row.course_name,
+            row.course_id,
+            row.completion_count,
+        )
 
 
 if __name__ == "__main__":
