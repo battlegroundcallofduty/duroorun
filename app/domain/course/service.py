@@ -12,6 +12,8 @@ from app.clients.r2 import delete_file, upload_file
 from app.config import settings
 from app.domain.course.models import Course, CourseImage, CourseType, CourseWaypoint, Difficulty
 from app.domain.course.schemas import (
+    AdminCourseListResponse,
+    AdminCourseResponse,
     CourseCreateRequest,
     CoursePopularityItem,
     CourseUpdateRequest,
@@ -25,6 +27,7 @@ from app.domain.course.schemas import (
     LandingStatsResponse,
     find_sigungu,
 )
+from app.domain.facility.service import sync_nearby_facilities
 from app.domain.record.models import Record
 from app.domain.review.models import Review
 from app.domain.review.service import get_average_difficulty, get_review_summary
@@ -226,6 +229,16 @@ async def create_course(
 
     session.add(course)
     await session.commit()
+    # 코스 시작점 근처 화장실/주차장/편의점을 카카오 검색으로 찾아 편의시설에 저장
+    # (실패해도 코스 생성은 유지)
+    await sync_nearby_facilities(
+        session,
+        course.course_id,
+        course.start_lat,
+        course.start_lng,
+        course.end_lat,
+        course.end_lng,
+    )
     course = await _get_custom_course(session, course.course_id)
     # (방금 생성된 코스라 리뷰가 없어 항상 None이지만, 나머지 3곳과 패턴을 맞춰둔다)
     await _attach_custom_course_extras(session, course)
@@ -339,6 +352,7 @@ async def update_course(
         setattr(course, field, value)
 
     # waypoints 필드가 요청에 아예 없으면 기존 경유지 유지, null이면 400
+    coords_changed = False
     if "waypoints" in body.model_fields_set:
         if body.waypoints is None:
             raise HTTPException(
@@ -352,6 +366,18 @@ async def update_course(
         # ㅡ flush로 기존 행 삭제를 먼저 확정시킨 뒤 채워넣음
         await session.flush()
         course.waypoints = _build_waypoints(body.waypoints)
+        # 시작점뿐 아니라 도착점만 바뀐 경우도 재동기화 대상
+        coords_changed = (
+            course.start_lat,
+            course.start_lng,
+            course.end_lat,
+            course.end_lng,
+        ) != (
+            body.waypoints[0].latitude,
+            body.waypoints[0].longitude,
+            body.waypoints[-1].latitude,
+            body.waypoints[-1].longitude,
+        )
         course.start_lat = body.waypoints[0].latitude
         course.start_lng = body.waypoints[0].longitude
         course.end_lat = body.waypoints[-1].latitude
@@ -361,6 +387,17 @@ async def update_course(
         course.end_sigun = find_sigungu(body.waypoints[-1].latitude, body.waypoints[-1].longitude)
 
     await session.commit()
+    if coords_changed:
+        # 코스가 새 지역으로 이동한 경우에만(시작/도착 어느 쪽이든)
+        # 코스 생성과 동일하게 시작/도착점 근처 편의시설 다시 찾아둔다.
+        await sync_nearby_facilities(
+            session,
+            course.course_id,
+            course.start_lat,
+            course.start_lng,
+            course.end_lat,
+            course.end_lng,
+        )
     course = await _get_custom_course(session, course_id)
     await _attach_custom_course_extras(session, course)
     return CustomCourseDetailResponse.model_validate(course)
@@ -436,6 +473,9 @@ async def upload_course_image(
     try:
         image_url = await upload_file("course-images", contents, ext, detected_content_type)
     except (ClientError, BotoCoreError) as err:
+        # R2 자격증명/버킷 설정 문제 등 원인 파악용 - HTTPException은 detail만 응답에
+        # 노출되고 서버 로그엔 안 남아서, 별도로 원본 예외를 남겨둠
+        logger.exception("코스 이미지 R2 업로드 실패: course_id=%s", course_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="이미지 업로드에 실패했습니다.",
@@ -497,6 +537,67 @@ async def delete_course_image(
         await delete_file(image_url)
     except (ClientError, BotoCoreError):
         logger.exception("DB 삭제 후 R2 파일 삭제 실패: image_url=%s", image_url)
+
+
+async def list_courses_for_admin(
+    session: AsyncSession,
+    page: int,
+    size: int,
+    course_type: CourseType | None = None,
+    keyword: str | None = None,
+    is_active: bool | None = None,
+) -> AdminCourseListResponse:
+    """관리자가 → 코스 목록을 조회 (is_active 무관, 조회+활성화토글 전용).
+
+    일반 코스 목록 API와 달리 비활성화된 코스도 그대로 노출.
+    is_active를 넘기면 그 상태만 필터링 - None이면(기본) 상태 무관 전체.
+    """
+    base_query = select(Course)
+    count_query = select(func.count()).select_from(Course)
+    if course_type is not None:
+        base_query = base_query.where(Course.course_type == course_type)
+        count_query = count_query.where(Course.course_type == course_type)
+    if keyword:
+        escaped = keyword.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        name_filter = Course.course_name.ilike(f"%{escaped}%", escape="\\")
+        base_query = base_query.where(name_filter)
+        count_query = count_query.where(name_filter)
+    if is_active is not None:
+        base_query = base_query.where(Course.is_active == is_active)
+        count_query = count_query.where(Course.is_active == is_active)
+
+    total = (await session.execute(count_query)).scalar_one()
+    list_query = base_query.order_by(Course.course_id.desc()).offset((page - 1) * size).limit(size)
+    courses = (await session.execute(list_query)).scalars().all()
+
+    return AdminCourseListResponse(
+        items=[AdminCourseResponse.model_validate(c) for c in courses],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
+async def set_course_active_for_admin(
+    session: AsyncSession, course_id: int, is_active: bool
+) -> AdminCourseResponse:
+    """관리자 - 코스를 활성화/비활성화 (다른 필드는 건드리지 않음).
+
+    ㅡ is_active=False(비활성화)로 지정할 때만 is_admin_managed=True로 같이 잠가서,
+      코스 시드로 인해 재활성화 되지 않도록.
+    ㅡ is_active=True(활성화)로 되돌리면 is_admin_managed도 같이 False로 풀어줌.
+      (다시 코스 시드의 관리 대상이 됨)
+    """
+    course = await session.get(Course, course_id)
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="코스를 찾을 수 없습니다."
+        )
+    course.is_active = is_active
+    course.is_admin_managed = not is_active
+    await session.commit()
+    await session.refresh(course)
+    return AdminCourseResponse.model_validate(course)
 
 
 async def get_landing_stats(session: AsyncSession) -> LandingStatsResponse:

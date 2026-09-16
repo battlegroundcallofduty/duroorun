@@ -6,6 +6,26 @@ import { loadKakaoMaps } from '../../lib/kakaoMaps';
 const _FALLBACK_CENTER = { lat: 37.75, lng: 128.9 };
 const _DEFAULT_LEVEL = 6;
 
+// marker.color가 있으면 기본 카카오 핀 대신 이 색 원형 마커 사용.
+// (같은 색+크기는 재사용 - 이미지 매번 새로 안 만듦)
+const _markerImageCache = new Map();
+const _buildMarkerImage = (kakao, color, size) => {
+  const cacheKey = `${color}:${size}`;
+  if (!_markerImageCache.has(cacheKey)) {
+    const half = size / 2;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
+      `<circle cx="${half}" cy="${half}" r="${half - 2}" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`;
+    _markerImageCache.set(
+      cacheKey,
+      new kakao.maps.MarkerImage(`data:image/svg+xml;base64,${btoa(svg)}`, new kakao.maps.Size(size, size), {
+        offset: new kakao.maps.Point(half, half),
+      })
+    );
+  }
+  return _markerImageCache.get(cacheKey);
+};
+
 /**
  * 재사용 가능한 카카오맵 컴포넌트.
  *
@@ -17,6 +37,23 @@ const _DEFAULT_LEVEL = 6;
  * 주의: DRNB 코스는 시작/종료 좌표만 있고 전체 경로 좌표가 없음
  * - `path`에 좌표 2개만 넘기면 실제 트레일과 무관한 직선이 그려지므로,
  * - DRNB는 `path` 없이 `markers`만 쓸 것.
+ *
+ * markers 각 항목은 `{ lat, lng, label?, color?, size?, url?, name? }`
+ * color 없으면 기본 카카오 핀, 주면 그 색 원형 마커(프론트 보고 수정).
+ * url을 주면 마커 클릭 시 그 주소를 새 탭으로 엶(편의시설의 카카오맵 상세)
+ * name을 주면 마우스를 올렸을 때만 그 이름을 작은 말풍선으로
+ * (한 번에 하나만 보이게, 다른 마커에 올리면 이전것 닫음.)
+ *
+ * panTo `{ lat, lng, level?, seq? }`를 주면 path/markers 유무와 상관없이 항상
+ * 지도 중심을 옮김(level 있으면 확대도 같이)
+ * seq는 좌표가 이전과 완전히 같아도(같은 곳 재검색) 이동을 다시 트리거하고
+ * 싶을 때 매번 다른 값(예: 증가하는 카운터)을 넣어주는 용도 - 재실행용
+ *
+ * autoFit(기본 !editable): 점 2개 이상일 때 경로 전체가 보이게 화면을 자동으로
+ * 맞출지. 편집 모드는 기본 꺼짐(사용자가 경유지 하나씩 찍는 동안 매번 줌아웃되면
+ * 불편해서) - 단, "수정 페이지에 처음 들어와 서버에 저장된 기존 경유지를 보여주는
+ * 시점"처럼 아직 사용자가 안 건드린 상태라면 호출부가 autoFit=true로 넘겨서 그때만
+ * 켤 수 있음(예: 아직 안 건드렸는지 추적하는 "dirty" 플래그의 반대값을 넘기는 식).
  */
 const KakaoMap = ({
   path = [],          // 선(순서 있는 점들)
@@ -27,11 +64,19 @@ const KakaoMap = ({
   emptyHint,          // 아무것도 안 찍었을때 안내문구
   initialCenter,      // 지도 처음 열때 중심 어디 보여줄지
   center,             // 마운트 이후에도 지도 중심을 옮기고 싶을 때(예: GPS 응답 도착) — path/markers가 비어있을 때만 적용
+  panTo,              // 사용자가 명시적으로 트리거한 이동(예: 주소 검색). center와 달리
+                       // path/markers가 있어도 항상 지도 중심을 옮김 - { lat, lng, level? }
+  // 점 2개 이상일 때 화면을 경로 전체가 보이게 자동으로 맞출지. 기본은 읽기전용일
+  // 때만(!editable) - 편집 모드는 사용자가 경유지 하나씩 클릭 추가하는 동안 매번
+  // 줌아웃되면 불편해서 기본은 꺼둠. 다만, 예: 수정 페이지 처음 진입하고 아무것도
+  // 건드리지 않은 경우는 호출부가 '아직 안 건드림' 신호를 이걸로 넘겨서 켤 수 있게
+  autoFit = !editable,
 }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const kakaoRef = useRef(null); // loadKakaoMaps()가 resolve한 kakao 객체
   const overlaysRef = useRef([]); // 매 렌더마다 지우고 다시 그리는 폴리라인/마커/오버레이 전부
+  const hoverOverlayRef = useRef(null); // 지금 떠있는 호버 미리보기 오버레이 - 한번에 하나만
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [retryToken, setRetryToken] = useState(0);
   // [현재값, 값바꾸는함수]: 밑에서 버튼 누르면 n+1 시켜서 1로 바뀌고 effect 재실행
@@ -75,6 +120,12 @@ const KakaoMap = ({
 
     overlaysRef.current.forEach((overlay) => overlay.setMap(null));
     overlaysRef.current = [];
+    // markers가 바뀌면 그 아래 깔려있던 마커도 다시 그려지므로, 이전 렌더에서 열려있던
+    // 호버 미리보기가 이제는 존재하지 않는 마커를 가리키게 됨 (고아 오버레이 방지)
+    if (hoverOverlayRef.current) {
+      hoverOverlayRef.current.setMap(null);
+      hoverOverlayRef.current = null;
+    }
 
     const allPoints = [...path, ...markers];
     if (allPoints.length === 0) return;
@@ -111,8 +162,20 @@ const KakaoMap = ({
       const marker = new kakao.maps.Marker({
         map,
         position: new kakao.maps.LatLng(m.lat, m.lng),
+        image: m.color ? _buildMarkerImage(kakao, m.color, m.size ?? 18) : undefined,
+        // clickable: true를 줘야 이 마커 위에서 커서가 포인터로 바뀜(호버 힌트) +
+        // 클릭 이벤트를 마커가 먼저 받고 거기서 끝내야 경유지 추가 등으로 안 샘.
+        clickable: Boolean(m.url),
       });
       overlaysRef.current.push(marker);
+
+      // url이 있으면(예: 편의시설 카카오맵 상세) 클릭 시 새 탭으로 엶.
+      // 마커 자체가 지도와 함께 정리되므로 리스너를 따로 해제할 필요 X
+      if (m.url) {
+        kakao.maps.event.addListener(marker, 'click', () => {
+          window.open(m.url, '_blank', 'noopener,noreferrer');
+        });
+      }
 
       if (m.label) {
         // innerHTML 문자열이 아니라 DOM 요소를 직접 넘겨서 label에 악성 마크업이 섞여
@@ -128,20 +191,50 @@ const KakaoMap = ({
         });
         overlaysRef.current.push(overlay);
       }
+
+      // name이 있으면(편의시설 이름 등) 마우스 올렸을 때만 작은 말풍선으로.
+      // label과 달리 항상 떠있는 게 아니라 그때그때
+      // hoverOverlayRef 하나로 관리(한 번에 하나만 보이게)
+      if (m.name) {
+        const hoverEl = document.createElement('div');
+        hoverEl.className = 'kakao-map-hover-label';
+        hoverEl.textContent = m.name;
+        const hoverOverlay = new kakao.maps.CustomOverlay({
+          position: new kakao.maps.LatLng(m.lat, m.lng),
+          content: hoverEl,
+          yAnchor: 1.6,
+        });
+        kakao.maps.event.addListener(marker, 'mouseover', () => {
+          // 이전 마커에서 떠 있던 미리보기 먼저 닫기 - 여러 개가 동시에 남지 않도록
+          if (hoverOverlayRef.current) hoverOverlayRef.current.setMap(null);
+          hoverOverlay.setMap(map);
+          hoverOverlayRef.current = hoverOverlay;
+        });
+        kakao.maps.event.addListener(marker, 'mouseout', () => {
+          hoverOverlay.setMap(null);
+          if (hoverOverlayRef.current === hoverOverlay) hoverOverlayRef.current = null;
+        });
+      }
     });
 
     if (allPoints.length === 1) {
+      // 중심만 옮기고 줌은 안 건드림 - 프론트 테스트하며 UX 개선
+      // 지도 처음 열릴 때의 기본 줌(_DEFAULT_LEVEL)은 map 생성 시점에만 적용
       map.setCenter(new kakao.maps.LatLng(allPoints[0].lat, allPoints[0].lng));
-      map.setLevel(_DEFAULT_LEVEL);
-    } else {
+    } else if (autoFit) {
+      // 읽기 전용(코스 상세)이거나, 편집 모드라도 호출부가 "아직 사용자가 안
+      // 건드린 상태"(예: 수정 페이지에 처음 들어와 기존 경유지를 보여주는 시점)라고
+      // autoFit=true로 넘겼으면 경로 전체가 한 화면에 들어오게 자동 맞춤
       const bounds = new kakao.maps.LatLngBounds();
       allPoints.forEach((p) => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
       map.setBounds(bounds);
     }
+    // editable + autoFit=false + 점 2개 이상(경유지 추가 중)인 경우는 화면 아예 안 건드림
+    // ㅡ 프론트 테스트해보니 매번 줌아웃되는게 경유지 찍는 과정에서 불편.
     // path/markers는 매 렌더마다 새 배열/객체로 넘어올 수 있음.
     // — 좌표 내용을 문자열화해 실제 값이 바뀔 때만 다시 그리도록
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, editable, JSON.stringify(path), JSON.stringify(markers)]);
+  }, [status, editable, autoFit, JSON.stringify(path), JSON.stringify(markers)]);
 
   // 컴포넌트가 언마운트될 때(페이지 이동 등) 지도에 남아있는 오버레이를 정리
   // ㅡ 안하면 죽은 kakao.maps 인스턴스 참조가 계속 쌓일 수 있음
@@ -159,6 +252,16 @@ const KakaoMap = ({
     mapRef.current.setCenter(new kakaoRef.current.maps.LatLng(center.lat, center.lng));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, center?.lat, center?.lng]);
+
+  // panTo가 바뀌면 path/markers 유무와 무관하게 항상 지도 중심 이동(+level 있으면 확대도).
+  // center(자동/GPS)와 달리 사용자가 직접 트리거한 이동이라 이미 진행 중이던 편집(경유지
+  // 몇 개 찍어둔 상태)을 덮어써도 괜찮다고 판단 - 그래서 위 center와 게이트 조건이 다름
+  useEffect(() => {
+    if (status !== 'ready' || !panTo) return;
+    mapRef.current.setCenter(new kakaoRef.current.maps.LatLng(panTo.lat, panTo.lng));
+    if (panTo.level != null) mapRef.current.setLevel(panTo.level);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, panTo?.lat, panTo?.lng, panTo?.level, panTo?.seq]);
 
   // 편집 모드 클릭 핸들러 (지도 클릭시 좌표를 부모에게 넘김)
   useEffect(() => {

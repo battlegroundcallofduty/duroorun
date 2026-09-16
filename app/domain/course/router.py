@@ -5,13 +5,16 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import rate_limit_per_request
-from app.core.security import get_current_user
+from app.core.security import get_current_admin, get_current_user
 from app.database import get_db
 from app.domain.course import attraction_service, weather_service
 from app.domain.course import service as course_service
 from app.domain.course.models import CourseType, Difficulty
 from app.domain.course.schemas import (
     GANGWON_BOUNDARY_PATH,
+    AdminCourseListResponse,
+    AdminCourseResponse,
+    AdminCourseUpdateRequest,
     CourseCreateRequest,
     CoursePopularityItem,
     CourseUpdateRequest,
@@ -40,6 +43,43 @@ _UPDATE_RATE_LIMIT_WINDOW_SECONDS = 3600
 # 유저당 이미지 업로드/삭제 한도: 10분에 20번 — 업로드와 key_prefix 공유
 _IMAGE_RATE_LIMIT_MAX_REQUESTS = 20
 _IMAGE_RATE_LIMIT_WINDOW_SECONDS = 600
+
+
+@router.get("/admin", response_model=AdminCourseListResponse, summary="코스 목록 조회 (관리자)")
+async def get_admin_courses(
+    course_type: CourseType | None = Query(default=None),
+    keyword: str | None = Query(default=None, min_length=1, max_length=100),
+    is_active: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    session: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """is_active 무관 전체 코스를 조회 (비활성 코스도 노출).
+    is_active를 넘기면 그 상태만 필터링."""
+    return await course_service.list_courses_for_admin(
+        session=session,
+        page=page,
+        size=size,
+        course_type=course_type,
+        keyword=keyword,
+        is_active=is_active,
+    )
+
+
+@router.patch(
+    "/admin/{course_id}", response_model=AdminCourseResponse, summary="코스 활성화/비활성화"
+)
+async def update_admin_course(
+    course_id: int,
+    body: AdminCourseUpdateRequest,
+    session: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """코스를 활성화/비활성화 (조회+토글 전용, 다른 필드 수정은 지원 X)."""
+    return await course_service.set_course_active_for_admin(
+        session=session, course_id=course_id, is_active=body.is_active
+    )
 
 
 @router.get("/gangwon-boundary")

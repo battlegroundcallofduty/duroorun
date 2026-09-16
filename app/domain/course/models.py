@@ -87,6 +87,11 @@ class Course(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # 관리자가 admin 페이지에서 is_active 기능 조절하기 위해 넣음
+    # (특히 두루누비 비활성화면 시드파일에서 제외시켜야 함)
+    is_admin_managed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

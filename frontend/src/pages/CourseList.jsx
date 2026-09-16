@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import CourseCard from '../components/CourseCard';
 import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { usePaginatedCourses } from '../hooks/usePaginatedCourses';
+import { useLoadMoreCourses } from '../hooks/useLoadMoreCourses';
 import { useSigunOptions } from '../hooks/useSigunOptions';
 import { formatCustomSigunBadge } from '../utils/format';
 
@@ -52,7 +52,12 @@ const buildCustomQuery = (filters, page, size) => {
 
 const CourseList = () => {
   const { user } = useUser();
-  const [courseType, setCourseType] = useState('drnb');
+  const [searchParams] = useSearchParams();
+  // 랜딩페이지 "커스텀 코스 TOP3" 섹션의 "전체 코스 보기"(/courses?type=custom)
+  // URL로 시작 탭을 지정할 수 있게 - 지정 없으면 항상 공식 코스라서
+  const [courseType, setCourseType] = useState(
+    searchParams.get('type') === 'custom' ? 'custom' : 'drnb'
+  );
   const [drnbFilters, setDrnbFilters] = useState(DRNB_INITIAL_FILTERS);
   const [customFilters, setCustomFilters] = useState(CUSTOM_INITIAL_FILTERS);
   // 둘 다 실제로 코스가 존재하는 시군만 서버에서 동적으로 받아옴
@@ -75,7 +80,7 @@ const CourseList = () => {
 
   // 탭 전환/필터 변경 시 1페이지부터 다시 조회(목록 교체), "더보기"는 다음 페이지를 이어 붙임
   // ㅡ 훅 내부에서 요청 세대를 관리해 늦게 도착한 응답(예: 더보기 도중 탭 전환)은 버림
-  const { courses, total, loading, loadingMore, error, loadMoreError, loadMore } = usePaginatedCourses(
+  const { courses, total, loading, loadingMore, error, loadMoreError, loadMore } = useLoadMoreCourses(
     path,
     buildQuery,
     [courseType, activeDebouncedFilters],
@@ -87,7 +92,7 @@ const CourseList = () => {
       <main className="course-list-page">
         <div className="section-heading">
           <div>
-            <span className="section-kicker">코스 찾기</span>
+            <span className="section-kicker">강원도 코스 찾기</span>
             <h2>어떤 길을 달려볼까요?</h2>
           </div>
           {courseType === 'custom' && user && (
@@ -103,7 +108,7 @@ const CourseList = () => {
             className={courseType === 'drnb' ? 'active' : ''}
             onClick={() => setCourseType('drnb')}
           >
-            두루누비 공식 코스
+            공식 코스
           </button>
           <button
             type="button"

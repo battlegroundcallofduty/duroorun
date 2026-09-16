@@ -7,6 +7,7 @@ import Header from '../components/layout/Header';
 import { useUser } from '../contexts/UserContext';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL } from '../utils/difficulty';
+import { formatCustomSigunBadge } from '../utils/format';
 
 // 백엔드 검증 규칙과 동일 (app/config.py REVIEW_CONTENT_MAX_LENGTH)
 const REVIEW_CONTENT_MAX_LENGTH = 2000;
@@ -27,6 +28,32 @@ const WEATHER_ICON = {
 // 로딩 중 번갈아 보여줄 이모지 - 실제 날씨와 무관한 순수 로딩 연출용
 const LOADING_ICONS = ['🌞', '🏃', '☔', '🏃‍♀️‍➡️'];
 const LOADING_ICON_INTERVAL_MS = 700;
+
+// 편의시설 요약 문구용 - 표시 순서 고정 + 라벨 (관리자 화면과 동일한 명칭)
+const FACILITY_TYPE_ORDER = ['RESTROOM', 'PARKING', 'LOCKER', 'OTHERS'];
+const FACILITY_TYPE_LABEL = { RESTROOM: '화장실', PARKING: '주차장', LOCKER: '보관함', OTHERS: '기타(편의점 등)' };
+// 마커 색 - 지도에 표시되는 편의시설 타입별
+// 시작/종료는 색 없이 기존 기본 카카오 핀 그대로
+const FACILITY_TYPE_COLOR = { RESTROOM: '#ed174c', PARKING: '#f5a623', LOCKER: '#0db14b', OTHERS: '#77787b' };
+// 지도엔 타입별로, 시작/종료 기준점 각각에서 가까운 순으로 이 개수까지만 마커 찍음
+// (기준점 2개면 최대 10개, 1개면 최대 5개)
+const FACILITY_MARKER_CAP_PER_ORIGIN = 5;
+// 한 페이지 조회로 전부 받아올 수 있게 넉넉히 (백엔드 size 상한)
+const FACILITY_PAGE_SIZE = 100;
+
+// Haversine 방식 직선거리(m) - 편의시설 마커를 시작점에서 가까운 순으로 자르는 데만 씀
+// (CustomCourseForm.jsx의 _haversineDistanceKm과 같은 공식, 단위만 m로 다름.
+// ㅡ 담당 화면이 달라 공용 유틸로 안 묶고 그대로 중복 유지)
+const _haversineDistanceM = (a, b) => {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+};
 
 // 날씨 브리핑은 내부에서 Gemini 호출해 평소보다 오래 걸릴 수 있음.
 // 백엔드 GEMINI_TIMEOUT_SECONDS(30초)가 사실상의 상한이라,
@@ -104,6 +131,29 @@ const CourseDetail = () => {
     }, LOADING_ICON_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [weatherLoading]);
+
+  // 코스 주변 편의시설(화장실/주차장/보관함/기타) - 결과 없거나 실패해도 조용히 섹션 숨김
+  // (관광지 추천과 동일한 패턴 - 부가 정보라 실패해도 페이지 전체를 막지 않음)
+  const [facilities, setFacilities] = useState([]);
+  useEffect(() => {
+    let ignore = false;
+    const fetchFacilities = async () => {
+      try {
+        const res = await apiFetch(`/v1/facilities?course_id=${courseId}&size=${FACILITY_PAGE_SIZE}`);
+        if (ignore || !res.ok) return;
+        const data = await res.json();
+        if (ignore) return;
+        setFacilities(data.items);
+      } catch {
+        // 조용히 무시
+      }
+    };
+    setFacilities([]);
+    fetchFacilities();
+    return () => {
+      ignore = true;
+    };
+  }, [courseId]);
 
   // 코스 주변 관광지 추천 - 결과 없거나 실패해도 조용히 섹션 숨김
   const [attractions, setAttractions] = useState([]);
@@ -546,6 +596,93 @@ const CourseDetail = () => {
     );
   }
 
+  // 편의시설 마커를 가까운 순으로 자르는 기준점 - 시작/종료 둘 다 씀(있는 것만).
+  // ㅡ 기준점별로 각각 가까운 순 N개씩 따로 뽑아 합치는 방식,
+  // 같은 시설이 양쪽 다 걸리면(짧은 코스 등) 중복 제거
+  const facilityOrigins = (() => {
+    if (courseType === 'drnb') {
+      return [
+        { lat: course.start_lat, lng: course.start_lng },
+        { lat: course.end_lat, lng: course.end_lng },
+      ].filter((p) => p.lat != null && p.lng != null);
+    }
+    if (course.waypoints?.length > 0) {
+      return [
+        { lat: course.waypoints[0].latitude, lng: course.waypoints[0].longitude },
+        { lat: course.waypoints.at(-1).latitude, lng: course.waypoints.at(-1).longitude },
+      ];
+    }
+    return [];
+  })();
+
+  // 지도에 얹을 편의시설 마커. 타입당 기준점(시작/종료)별로 가까운 순 상위
+  // FACILITY_MARKER_CAP_PER_ORIGIN개씩(기준점 2개면 최대 10개, 1개면 최대 5개) 표시.
+  // ㅡ 편의시설이 너무 많으면 지도가 지저분하고 시작/종료 좌표마저 안 보임.
+  // 이름은 마우스 올릴때만 보임(name), 클릭하면 카카오맵 상세로 이동(url)
+  const facilityMarkers = FACILITY_TYPE_ORDER.flatMap((type) => {
+    const ofType = facilities.filter((f) => f.facility_type === type);
+    let picked;
+    if (facilityOrigins.length > 0) {
+      const seenIds = new Set();
+      picked = [];
+      for (const origin of facilityOrigins) {
+        const nearest = [...ofType]
+          .sort(
+            (a, b) =>
+              _haversineDistanceM(origin, { lat: a.latitude, lng: a.longitude }) -
+              _haversineDistanceM(origin, { lat: b.latitude, lng: b.longitude })
+          )
+          .slice(0, FACILITY_MARKER_CAP_PER_ORIGIN);
+        for (const f of nearest) {
+          if (seenIds.has(f.facility_id)) continue;
+          seenIds.add(f.facility_id);
+          picked.push(f);
+        }
+      }
+    } else {
+      picked = ofType;
+    }
+    return picked.map((f) => ({
+      lat: f.latitude,
+      lng: f.longitude,
+      color: FACILITY_TYPE_COLOR[type],
+      url: f.place_url ?? undefined,
+      name: f.facility_name,
+    }));
+  });
+  // 마커 색이 뭔지 알려주는 범례 - 실제로 이 코스에 있는 타입만 표시
+  const facilityLegendTypes = FACILITY_TYPE_ORDER.filter((type) =>
+    facilities.some((f) => f.facility_type === type)
+  );
+  // "몇 개까지 표시됩니다" 안내는 실제로 의미가 있을 때만 조건부로 보여줌.
+  // 살짝 보수적으로(더 자주 보여주는 쪽으로) 판단함
+  const facilityOriginCap = FACILITY_MARKER_CAP_PER_ORIGIN * Math.max(facilityOrigins.length, 1);
+  const facilityMarkersCapped = FACILITY_TYPE_ORDER.some(
+    (type) => facilities.filter((f) => f.facility_type === type).length > facilityOriginCap
+  );
+  // 범례를 지도 바로 밑 맨 위에, 그 아래 안내 문구 순서로
+  const facilityLegend = facilityLegendTypes.length > 0 && (
+    <>
+      <p className="facility-legend">
+        {facilityLegendTypes.map((type) => (
+          <span key={type} className="facility-legend-item">
+            <i style={{ backgroundColor: FACILITY_TYPE_COLOR[type] }} />
+            {FACILITY_TYPE_LABEL[type]}
+          </span>
+        ))}
+      </p>
+      <p className="kakao-map-hint-static">
+        편의시설 마커를 클릭하면 카카오맵 상세 페이지로 이동합니다.
+        {facilityMarkersCapped && (
+          <>
+            <br />
+            ( 편의시설은 시작/종료 지점 각각 가까운 순으로 유형당 최대 {FACILITY_MARKER_CAP_PER_ORIGIN}개까지 표시됩니다. )
+          </>
+        )}
+      </p>
+    </>
+  );
+
   return (
     <>
       <Header />
@@ -556,7 +693,7 @@ const CourseDetail = () => {
 
         <div className="course-detail-heading">
           <span className="section-kicker">
-            {courseType === 'drnb' ? (course.sigun ?? course.brd_div) : '커스텀 코스'}
+            {courseType === 'drnb' ? (course.sigun ?? course.brd_div) : formatCustomSigunBadge(course)}
           </span>
           <div className="course-detail-title-row">
             <h1>
@@ -660,12 +797,16 @@ const CourseDetail = () => {
         {/* DRNB는 시작/종료 좌표만 DB에 있고 전체 경로가 없어서 마커만 표시(직선 경로선은
             실제 트레일과 무관해 오해를 줄 수 있음). 커스텀은 경유지가 다 있어 경로선까지 표시 */}
         {courseType === 'drnb' && course.has_verification_coords && (
-          <KakaoMap
-            markers={[
-              { lat: course.start_lat, lng: course.start_lng, label: '시작' },
-              { lat: course.end_lat, lng: course.end_lng, label: '종료' },
-            ]}
-          />
+          <>
+            <KakaoMap
+              markers={[
+                { lat: course.start_lat, lng: course.start_lng, label: '시작' },
+                { lat: course.end_lat, lng: course.end_lng, label: '종료' },
+                ...facilityMarkers,
+              ]}
+            />
+            {facilityLegend}
+          </>
         )}
         {courseType === 'custom' && course.waypoints?.length > 0 && (
           <>
@@ -685,8 +826,10 @@ const CourseDetail = () => {
                   lng: course.waypoints.at(-1).longitude,
                   label: '종료',
                 },
+                ...facilityMarkers,
               ]}
             />
+            {facilityLegend}
           </>
         )}
 

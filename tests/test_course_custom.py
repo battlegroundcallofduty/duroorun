@@ -25,6 +25,7 @@ from app.domain.course.service import (
     delete_course_image,
     get_custom_course_sigun_options,
     get_custom_courses,
+    list_courses_for_admin,
     update_course,
     upload_course_image,
 )
@@ -161,9 +162,13 @@ async def test_update_course_by_owner_succeeds(db_session, custom_course_owner):
     assert result.course_name == "본인이 바꾼 이름"
 
 
-async def test_create_course_serializes_creator_nickname(db_session):
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
+async def test_create_course_serializes_creator_nickname(mock_sync_restrooms, db_session):
     """생성 직후 응답 직렬화까지 확인 - course.creator가 eager load 안 돼있으면
-    creator_nickname 대입 시 lazy load 에러가 남."""
+    creator_nickname 대입 시 lazy load 에러가 남.
+
+    ㅡ sync_nearby_facilities(카카오 실호출)는 테스트 항목 아니라 mock 처리.
+    """
     owner = User(nickname=f"pytest-creator-{uuid.uuid4().hex[:12]}")
     db_session.add(owner)
     await db_session.commit()
@@ -193,10 +198,14 @@ async def test_create_course_serializes_creator_nickname(db_session):
         await db_session.commit()
 
 
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
 async def test_update_course_replaces_waypoints_and_start_end_coords(
-    db_session, custom_course_owner
+    mock_sync_restrooms, db_session, custom_course_owner
 ):
-    """waypoints를 새로 보내면 경유지가 통째로 교체되고 start/end 좌표도 갱신."""
+    """waypoints를 새로 보내면 경유지가 통째로 교체되고 start/end 좌표도 갱신.
+
+    ㅡ sync_nearby_facilities(카카오 실호출)는 테스트 항목 아니라 mock 처리.
+    """
     course, owner = custom_course_owner
     new_waypoints = [
         {"latitude": 38.2070, "longitude": 128.5918},  # 속초해변
@@ -219,9 +228,49 @@ async def test_update_course_replaces_waypoints_and_start_end_coords(
         ]
         assert (result.start_lat, result.start_lng) == (38.2070, 128.5918)
         assert (result.end_lat, result.end_lng) == (37.7519, 128.8761)
+        # 시작/종료 좌표가 바뀐 경우 편의시설 재동기화가 트리거되는지,
+        # 시작/종료 좌표를 다 넘기는지 확인
+        mock_sync_restrooms.assert_awaited_once_with(
+            db_session, course.course_id, 38.2070, 128.5918, 37.7519, 128.8761
+        )
     finally:
         # 도커 테스트 돌리다 뒷정리 단계에서 FK 제약 위반이 나서 여기서 먼저 정리
         # ㅡ finally로 course_waypoints를 먼저 지우도록 고침
+        await db_session.execute(
+            delete(CourseWaypoint).where(CourseWaypoint.course_id == course.course_id)
+        )
+        await db_session.commit()
+
+
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
+async def test_update_course_syncs_facilities_when_only_end_point_changes(
+    mock_sync_restrooms, db_session, custom_course_owner
+):
+    """시작점은 그대로 두고 종료점만 옮겨도 편의시설 재동기화가 트리거.
+
+    ㅡ custom_course_owner의 원래 시작 좌표(37.75, 128.9)를 첫 waypoint로 그대로
+      재사용하고, 마지막 waypoint(종료 좌표)만 다른 곳으로 바꿔서 검증
+    """
+    course, owner = custom_course_owner
+    new_waypoints = [
+        {"latitude": 37.75, "longitude": 128.9},  # 원래 시작 좌표와 동일 (안 바뀜)
+        {"latitude": 37.7519, "longitude": 128.8761},  # 강릉시청 - 원래 종료 좌표와 다름
+    ]
+
+    try:
+        result = await update_course(
+            session=db_session,
+            user_id=owner.user_id,
+            course_id=course.course_id,
+            body=CourseUpdateRequest(waypoints=new_waypoints),
+        )
+
+        assert (result.start_lat, result.start_lng) == (37.75, 128.9)
+        assert (result.end_lat, result.end_lng) == (37.7519, 128.8761)
+        mock_sync_restrooms.assert_awaited_once_with(
+            db_session, course.course_id, 37.75, 128.9, 37.7519, 128.8761
+        )
+    finally:
         await db_session.execute(
             delete(CourseWaypoint).where(CourseWaypoint.course_id == course.course_id)
         )
@@ -497,8 +546,12 @@ def test_find_sigungu_returns_none_outside_gangwon():
     assert find_sigungu(37.5665, 126.9780) is None
 
 
-async def test_create_course_computes_sigun_and_end_sigun(db_session):
-    """생성 시 시작/종료 waypoint 좌표로 sigun/end_sigun이 각각 계산돼 저장."""
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
+async def test_create_course_computes_sigun_and_end_sigun(mock_sync_restrooms, db_session):
+    """생성 시 시작/종료 waypoint 좌표로 sigun/end_sigun이 각각 계산돼 저장.
+
+    ㅡ sync_nearby_facilities(카카오 실호출)는 테스트 항목 아니라 mock 처리.
+    """
     owner = User(nickname=f"pytest-sigun-{uuid.uuid4().hex[:12]}")
     db_session.add(owner)
     await db_session.commit()
@@ -549,8 +602,14 @@ async def test_update_course_without_waypoints_keeps_sigun_unchanged(
     assert result.end_sigun == original_end_sigun
 
 
-async def test_update_course_with_new_waypoints_recomputes_sigun(db_session, custom_course_owner):
-    """waypoints를 새로 보내면 sigun/end_sigun도 새 좌표 기준으로 재계산."""
+@patch("app.domain.course.service.sync_nearby_facilities", new_callable=AsyncMock)
+async def test_update_course_with_new_waypoints_recomputes_sigun(
+    mock_sync_restrooms, db_session, custom_course_owner
+):
+    """waypoints를 새로 보내면 sigun/end_sigun도 새 좌표 기준으로 재계산.
+
+    ㅡ sync_nearby_facilities(카카오 실호출)는 테스트 항목 아니라 mock 처리.
+    """
     course, owner = custom_course_owner
 
     try:
@@ -646,6 +705,60 @@ async def test_get_custom_course_sigun_options_excludes_inactive_courses(db_sess
         options = await get_custom_course_sigun_options(session=db_session)
         assert "강원 정선군" in options
         assert "강원 태백시" not in options
+    finally:
+        await db_session.execute(
+            delete(Course).where(Course.course_id.in_([active.course_id, inactive.course_id]))
+        )
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.commit()
+
+
+async def test_list_courses_for_admin_filters_by_is_active(db_session):
+    """관리자 코스 목록 조회 시 is_active를 넘기면 해당 상태만, 안 넘기면 전체."""
+    owner = User(nickname=f"pytest-admin-list-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    name_suffix = uuid.uuid4().hex[:8]
+    active = Course(
+        course_type=CourseType.CUSTOM,
+        course_name=f"pytest-admin-active-{name_suffix}",
+        created_by=owner.user_id,
+        distance=5.0,
+        difficulty="NORMAL",
+        estimated_time=60,
+        is_active=True,
+    )
+    inactive = Course(
+        course_type=CourseType.CUSTOM,
+        course_name=f"pytest-admin-inactive-{name_suffix}",
+        created_by=owner.user_id,
+        distance=5.0,
+        difficulty="NORMAL",
+        estimated_time=60,
+        is_active=False,
+    )
+    db_session.add_all([active, inactive])
+    await db_session.commit()
+
+    try:
+        active_only = await list_courses_for_admin(
+            session=db_session, page=1, size=100, keyword=name_suffix, is_active=True
+        )
+        inactive_only = await list_courses_for_admin(
+            session=db_session, page=1, size=100, keyword=name_suffix, is_active=False
+        )
+        both = await list_courses_for_admin(
+            session=db_session, page=1, size=100, keyword=name_suffix, is_active=None
+        )
+
+        active_ids = {c.course_id for c in active_only.items}
+        inactive_ids = {c.course_id for c in inactive_only.items}
+        both_ids = {c.course_id for c in both.items}
+
+        assert active.course_id in active_ids and inactive.course_id not in active_ids
+        assert inactive.course_id in inactive_ids and active.course_id not in inactive_ids
+        assert {active.course_id, inactive.course_id} <= both_ids
     finally:
         await db_session.execute(
             delete(Course).where(Course.course_id.in_([active.course_id, inactive.course_id]))

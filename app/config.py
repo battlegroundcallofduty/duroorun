@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     TOUR_API_KEY: str = ""
     TOUR_BASE_URL: str = "https://apis.data.go.kr/B551011/KorService2"
 
+    # 한국교통안전공단 주차정보 (편의시설 주차장) - DURUNUBI_API_KEY와 동일 값 사용
+    # 시드파일 만들긴 했는데, 스케줄러 돌아가진 않음.
+    PARKING_API_KEY: str = ""
+    PARKING_BASE_URL: str = "https://apis.data.go.kr/B553881/Parking"
+
+    # 카카오 로컬 API (편의시설 키워드 검색). KAKAO_MAP_API_KEY와는 별개,
+    # 서버에서 REST로 호출하기 위한 키
+    KAKAO_MAP_REST_API_KEY: str = ""
+
     # 코스 날씨 브리핑 중 "단기예보 요약 문단 + 기온/상태 통계" 캐시 TTL(초)
     # ㅡ 단기예보 갱신 주기(3시간)와 동일
     WEATHER_BRIEFING_CACHE_TTL_SECONDS: int = 10800
@@ -63,20 +72,24 @@ class Settings(BaseSettings):
     # ㅡ 캐시 키에 특보 원문 해시 있어서 특보 내용 바뀌면 자동으로 갈아치워짐
     # ㅡ 오래된 특보 캐시가 redis에 무한정 남지 않게 하는 안전장치 TTL
     WEATHER_WARNING_COMMENT_CACHE_TTL_SECONDS: int = 3600
-    # 주변 관광지 추천 캐시 TTL(초)
-    NEARBY_ATTRACTIONS_CACHE_TTL_SECONDS: int = 86400
-    # 시작/종료점 중 일부(또는 전체) 관광지 API 호출이 실패한 응답의 캐시 TTL(초)
-    # ㅡ 정상 빈 결과와 구분해 짧게 잡아, 장애 복구 후 금방 다시 조회되게
-    NEARBY_ATTRACTIONS_PARTIAL_FAILURE_CACHE_TTL_SECONDS: int = 300
     NEARBY_ATTRACTIONS_RADIUS_M: int = 5000
 
-    # 코스 날씨/관광지 엔드포인트는 비로그인 공개 API라 유저 단위 rate limit을 못 쓰고,
+    # 코스 날씨 엔드포인트는 비로그인 공개 API라 유저 단위 rate limit을 못 쓰고,
     # IP 단위로 건다. 캐시 히트는 카운트 X, "실제로 외부 API 새로 호출하는 경우"만 O
     # ㅡ 두루누비 시딩 배치와 공공데이터포털 쿼터를 공유하므로 남용 방지 안전장치.
     WEATHER_BRIEFING_RATE_LIMIT_MAX_REQUESTS: int = 30
     WEATHER_BRIEFING_RATE_LIMIT_WINDOW_SECONDS: int = 3600
-    NEARBY_ATTRACTIONS_RATE_LIMIT_MAX_REQUESTS: int = 30
+    # 관광지 추천은 캐싱 없이 매 요청마다 관광공사 API를 실시간 호출 (공모전 권고사항)
+    # 이제 정상 조회도 전부 카운트되므로, 예전보다 한도 넉넉히 올림.
+    # ㅡ 기존에는 API가 일 1회 업데이트라 24시간 redis 캐싱방식이었음.
+    NEARBY_ATTRACTIONS_RATE_LIMIT_MAX_REQUESTS: int = 100
     NEARBY_ATTRACTIONS_RATE_LIMIT_WINDOW_SECONDS: int = 3600
+    # 관광공사 관광정보 API 자체의 일일 트래픽 한도(팀 확인: 1,000회/일)를 지키기 위한
+    # 전역(서버 전체) 카운터 - 다수 IP가 나눠 쓰면 하루 쿼터 소진 우려 때문에.
+    # 900으로 잡아 수동 테스트/여유분 100회를 남겨둠. WINDOW는 자정 기준이 아니라
+    # "첫 호출 시점부터 24시간" 롤링 윈도우(WEATHER_BRIEFING과 동일 방식).
+    NEARBY_ATTRACTIONS_DAILY_QUOTA_MAX_CALLS: int = 900
+    NEARBY_ATTRACTIONS_DAILY_QUOTA_WINDOW_SECONDS: int = 86400
 
     # Gemini
     GEMINI_API_KEY: str = ""
@@ -94,6 +107,11 @@ class Settings(BaseSettings):
 
     # 완주 인증 반경 (미터)
     COMPLETION_RADIUS_M: int = 300
+
+    # 편의시설 반경 (미터) - 코스 상세 조회 시 이 반경 내 편의시설을 자동 표시.
+    # 카카오 키워드 검색 호출 반경으로도 동일하게 사용.
+    # ㅡ 편의시설이 너무 많이 잡히는 것 같으면 이 반경 줄이는것 추천.
+    FACILITY_RADIUS_M: int = 1000
 
     # 이미지 업로드 정책
     COURSE_IMAGE_MAX_COUNT: int = 3

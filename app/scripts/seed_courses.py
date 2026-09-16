@@ -10,7 +10,7 @@ from pathlib import Path
 
 import gpxpy
 import httpx
-from sqlalchemy import select, text
+from sqlalchemy import case, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from app.domain.course.models import Course, CourseSyncLog, CourseType, Difficul
 # Course의 관계/FK가 참조하는 다른 도메인 모델들 — 직접 안 써도 import해야
 # SQLAlchemy가 courses.created_by(→users), course_facility(→facilities) 매핑을 해석할 수 있음
 from app.domain.facility import models as _facility_models  # noqa: F401
+from app.domain.facility.service import sync_nearby_facilities
 from app.domain.user import models as _user_models  # noqa: F401
 from app.scripts.manual_courses import MANUAL_COURSES
 
@@ -113,8 +114,14 @@ async def _upsert_courses(session: AsyncSession, items: list[dict]) -> None:
             "course_description", "sigun", "brd_div",
         )
     }
-    # 이번에 API 응답에 다시 나타난 코스는 재활성화 (예전에 비활성화됐던 경우 대비)
-    update_cols["is_active"] = True
+    # 이번에 API 응답에 다시 나타난 코스는 재활성화 (예전에 비활성화됐던 경우 대비).
+    # 단, 관리자가 admin 페이지에서 직접 비활성화한 코스(is_admin_managed=true)는
+    # 이 기본 재활성화 동작으로 덮어쓰지 않고 관리자가 정한 is_active를 그대로 유지.
+    # 나머지 컬럼(코스명/거리 등)은 잠금과 무관하게 최신화
+    update_cols["is_active"] = case(
+        (Course.is_admin_managed.is_(True), Course.is_active),
+        else_=True,
+    )
     stmt = stmt.on_conflict_do_update(index_elements=["dmb_id"], set_=update_cols)
     await session.execute(stmt)
     await session.commit()
@@ -299,6 +306,10 @@ async def _sync_coordinates(session: AsyncSession, gpx_sources: dict[str, str | 
             if current != coords:
                 course.start_lat, course.start_lng, course.end_lat, course.end_lng = coords
                 await session.commit()
+                # 좌표가 새로 생기거나 바뀐 코스만 - 매일 전체 코스를 다시 검색하지 않기 위함
+                await sync_nearby_facilities(
+                    session, course.course_id, coords[0], coords[1], coords[2], coords[3]
+                )
 
     if failed:
         logger.warning(
