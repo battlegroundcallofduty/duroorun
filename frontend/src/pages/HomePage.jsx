@@ -163,30 +163,32 @@ export default function Home() {
               <span className="section-kicker">달리며 만나는 곳</span>
               <h2>{topCourse.course_name} 주변에서 만나는 관광지</h2>
             </div>
-            <div className="attraction-heading-actions">
-              <div className="attraction-scroll-arrows">
-                <button
-                  type="button"
-                  className="attraction-scroll-arrow"
-                  onClick={() => scrollAttractions(-1)}
-                  aria-label="이전 관광지"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="attraction-scroll-arrow"
-                  onClick={() => scrollAttractions(1)}
-                  aria-label="다음 관광지"
-                >
-                  ›
-                </button>
-              </div>
+          </div>
+          {/* CourseDetail.jsx의 주변 관광지 섹션과 동일하게, 화살표를 제목 옆이 아니라
+              힌트 문구 바로 옆으로 옮겨서 스크롤 조작과 그 안내문이 한눈에 붙어 보이게 한다 */}
+          <div className="attraction-hint-row">
+            <p className="kakao-map-hint-static">
+              코스마다 시작·종료 지점 주변 관광지를 실시간으로 추천해드려요. 달리는 동안 여행하듯 강원을 만나보세요.
+            </p>
+            <div className="attraction-scroll-arrows">
+              <button
+                type="button"
+                className="attraction-scroll-arrow"
+                onClick={() => scrollAttractions(-1)}
+                aria-label="이전 관광지"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="attraction-scroll-arrow"
+                onClick={() => scrollAttractions(1)}
+                aria-label="다음 관광지"
+              >
+                ›
+              </button>
             </div>
           </div>
-          <p className="kakao-map-hint-static">
-            코스마다 시작·종료 지점 주변 관광지를 실시간으로 추천해드려요. 달리는 동안 여행하듯 강원을 만나보세요.
-          </p>
           <div className="attraction-scroll-row" ref={attractionScrollRef}>
             {attractions.map((attraction) => (
               <div key={attraction.content_id ?? attraction.title} className="attraction-card">
