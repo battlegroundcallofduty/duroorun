@@ -32,7 +32,7 @@ from app.domain.review.schemas import (
     ReviewSummaryResponse,
     ReviewUpdateRequest,
 )
-from app.domain.user.models import UserRole
+from app.domain.user.models import User, UserRole
 from app.redis import get_redis
 
 logger = logging.getLogger(__name__)
@@ -551,7 +551,8 @@ async def get_reviews(
     )
     total = total_result.scalar_one()
     result = await session.execute(
-        select(Review)
+        select(Review, User.nickname)
+        .join(User, User.user_id == Review.user_id)
         .where(Review.course_id == course_id, Review.user_id.is_not(None))
         # created_at만으로 정렬하면 동시각 생성 행끼리 순서가 DB 실행마다 달라질 수
         # 있어, offset 기반 "더보기" 경계에서 항목이 중복되거나 누락될 수 있다.
@@ -559,9 +560,14 @@ async def get_reviews(
         .offset(offset)
         .limit(size)
     )
-    reviews = result.scalars().all()
+    items = []
+    for review, nickname in result.all():
+        # Review 모델의 실제 컬럼이 아니라 이 응답 한정으로만 붙이는 값 - 작성자
+        # 프로필 링크 대신 닉네임을 바로 보여주기 위함(요청 반영)
+        review.nickname = nickname
+        items.append(ReviewResponse.model_validate(review))
     return ReviewListResponse(
-        items=[ReviewResponse.model_validate(r) for r in reviews],
+        items=items,
         total=total,
         page=page,
         size=size,

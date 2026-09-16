@@ -335,17 +335,26 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .course-list-footer-note a { color:inherit; text-decoration:underline; }
 .course-detail-images { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0 28px; }
 .course-detail-images img { width:160px; height:120px; object-fit:cover; border-radius:8px; }
+/* 리뷰 이미지는 여러 장 첨부될 수 있어(최대 5장) 줄바꿈 대신 가로 스크롤로 보여준다
+   (요청 반영) - course-detail-images(코스 사진, 줄바꿈)와는 다른 레이아웃이라 별도 클래스로 뺐다 */
+.review-item-images { display:flex; flex-wrap:nowrap; gap:10px; margin:12px 0; overflow-x:auto; padding-bottom:4px; }
 
 /* .text-button는 <a> 기준으로 만들어져 있어서, <button>에 그대로 쓰면 브라우저 기본
    테두리/배경이 남아 박스처럼 보인다 - <button class="text-button">에서만 그걸 지운다.
    <a>는 브라우저가 기본으로 손모양 커서를 보여주지만 <button>은 기본이 화살표라, 다른
    버튼(.weather-briefing-button 등)과 동일한 클릭 느낌이 나도록 커서도 맞춰준다 */
-button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; }
+button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; transition:color .15s ease; }
 button.text-button:disabled { cursor:not-allowed; }
 /* "이미지 추가"처럼 숨긴 파일 input을 감싸는 <label>도 버튼과 똑같이 커서가 기본값이라
    손모양이 안 떴다 - 동일하게 맞춘다 */
-label.text-button { cursor:pointer; }
+label.text-button { cursor:pointer; transition:color .15s ease; }
 label.text-button:has(input:disabled) { cursor:not-allowed; }
+/* 수정/삭제/이미지 추가 같은 리뷰 버튼들에 눌렀을 때 클릭이 실제로 됐는지 체감이 안
+   된다는 피드백(요청 반영) - 처음엔 눌림(scale) 효과였는데, 날씨 브리핑 버튼처럼 호버 시
+   색이 바뀌는 쪽으로 다시 요청받아 변경. disabled 상태에선 효과를 주지 않는다 */
+button.text-button:not(:disabled):hover,
+label.text-button:not(:has(input:disabled)):hover { color:var(--green); }
+.review-item-image button:active { transform:scale(.94); opacity:.75; }
 
 /* 코스 상세 - 리뷰 (목록/작성/수정/삭제) */
 .review-summary-box { margin:24px 0; padding:20px; background:var(--cream); border-radius:10px; }
@@ -386,16 +395,17 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
    header/content/이미지가 기존과 동일하게 세로로 쌓이는 레이아웃을 유지한다 */
 .review-item-link { display:block; }
 .review-item-header { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-bottom:8px; }
-.review-author-link { margin-left:auto; font-size:12px; }
+.review-author-name { margin-left:auto; font-size:12px; color:#5c706c; cursor:pointer; transition:color .15s ease; }
+.review-author-name:hover { color:var(--green); }
 .review-item-content { margin:0; color:#3d524f; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:17px; line-height:1.7; white-space:pre-wrap; }
 .review-difficulty-badge { font-size:13px; font-weight:700; padding:5px 12px; border-radius:14px; color:#fff; }
 .review-difficulty-badge.green { background:var(--green); }
 .review-difficulty-badge.blue { background:var(--blue); }
 .review-difficulty-badge.red { background:var(--red); }
 .review-item-actions { display:flex; align-items:center; gap:16px; margin-top:12px; }
-.review-item-image { position:relative; display:inline-block; }
+.review-item-image { position:relative; display:inline-block; flex-shrink:0; }
 .review-item-image img { width:200px; height:150px; object-fit:cover; border-radius:8px; }
-.review-item-image button { position:absolute; top:4px; right:4px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(16,42,43,.7); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; }
+.review-item-image button { position:absolute; top:4px; right:4px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(16,42,43,.7); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; transition:transform .1s ease, opacity .1s ease; }
 
 /* 러닝 기록 시작/진행 */
 .record-page { max-width:520px; margin:0 auto; padding:60px 24px 80px; min-height:100vh; }
@@ -407,6 +417,9 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
    지도 래퍼가 패널 너비를 그대로 차지하도록 편다(러닝 중 실시간 위치 지도) */
 .record-start-panel .kakao-map-wrapper { align-self:stretch; }
 .record-hint { color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; margin:0; }
+/* record-hint는 기본 margin:0(타이머 옆 등 다른 곳에서 딱 붙어야 하는 용도)이라, 여기는
+   위아래 다른 요소와 너무 붙어보인다는 피드백(요청 반영)으로 이 자리에서만 여백을 준다 */
+.my-review-manage-hint { margin:12px 0; }
 .record-live { color:var(--red); animation:record-blink 1s step-start infinite; }
 @keyframes record-blink { 50% { opacity:0; } }
 .button-spinner { display:inline-block; width:14px; height:14px; margin-right:8px; vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:button-spin .7s linear infinite; }
@@ -431,6 +444,10 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
 .record-history-stats { display:flex; align-items:center; gap:16px; color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; }
 .record-badge { color:#82928e; font-size:12px; padding:4px 10px; border-radius:12px; background:#f1f1ee; }
 .record-badge.success { color:var(--green); background:#e3f6e9; }
+.record-badge.pending { color:var(--blue); background:#e6eef6; }
+/* 진행 중인 기록 카드를 통째로 링크로 감쌀 때(요청 반영) - .record-history-item의
+   flex 레이아웃을 그대로 유지해야 감싸기 전과 똑같이 보인다 */
+.record-history-item-link { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; width:100%; color:inherit; text-decoration:none; }
 .record-history-actions { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
 .record-history-review-link { font-size:12px; font-weight:600; text-decoration:none; }
 .record-history-delete { background:none; border:0; padding:4px 8px; font-size:12px; color:var(--red); font-weight:600; cursor:pointer; }

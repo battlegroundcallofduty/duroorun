@@ -235,7 +235,6 @@ async def test_end_record_without_user_end_coords_saves_but_not_completed(db_ses
     record = Record(
         user_id=owner.user_id,
         course_id=course.course_id,
-        # 60초 미만이면 "러닝시간이 너무 짧아" 검증에 걸려버리므로 여유를 둔다
         started_at=datetime.now(UTC) - timedelta(seconds=90),
         ended_at=None,
         is_completed=False,
@@ -259,6 +258,48 @@ async def test_end_record_without_user_end_coords_saves_but_not_completed(db_ses
             "다만 러닝 기록은 기록할 수 있어요."
         )
         assert result.duration_seconds is not None
+    finally:
+        await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
+        await db_session.execute(delete(User).where(User.user_id == owner.user_id))
+        await db_session.execute(delete(Course).where(Course.course_id == course.course_id))
+        await db_session.commit()
+
+
+async def test_end_record_under_60_seconds_still_saves(db_session):
+    """60초 미만 러닝도 거부하지 않고 그대로 종료·저장된다(요청 반영).
+
+    이전엔 짧은 기록을 아예 거부(commit 안 됨)했는데, 그러면 서버는 저장을 안 했는데
+    프론트는 이미 종료 처리된 것처럼 넘어가 버려서, 새로고침하면 기록이 여전히
+    "진행 중"으로 남아있는 문제가 있었다.
+    """
+    course = await _make_course(db_session)
+    owner = User(nickname=f"pytest-owner-{uuid.uuid4().hex[:12]}")
+    db_session.add(owner)
+    await db_session.flush()
+
+    record = Record(
+        user_id=owner.user_id,
+        course_id=course.course_id,
+        started_at=datetime.now(UTC) - timedelta(seconds=5),
+        ended_at=None,
+        is_completed=False,
+        user_start_lat=1.0,
+        user_start_lng=1.0,
+    )
+    db_session.add(record)
+    await db_session.commit()
+    await db_session.refresh(record)
+
+    try:
+        result = await end_record(
+            session=db_session,
+            user_id=owner.user_id,
+            record_id=record.record_id,
+            body=RecordEndRequest(user_end_lat=1.0, user_end_lng=1.0),
+        )
+        assert result.duration_seconds is not None
+        assert result.duration_seconds < 60
+        assert result.is_completed is False
     finally:
         await db_session.execute(delete(Record).where(Record.record_id == record.record_id))
         await db_session.execute(delete(User).where(User.user_id == owner.user_id))

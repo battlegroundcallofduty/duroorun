@@ -146,15 +146,13 @@ async def end_record(
     if record.paused_at is not None:  # 일시정지 중 종료
         record.total_paused_seconds += int((record.ended_at - record.paused_at).total_seconds())
         record.paused_at = None
-    record.duration_seconds = (
-        int((record.ended_at - record.started_at).total_seconds()) - record.total_paused_seconds
+    # 60초 미만이면 기록 자체를 거부했었는데, 그러면 서버는 저장을 안(정확히는 커밋을
+    # 안) 했는데 프론트는 이미 "종료 중" 상태를 벗어나 버려서, 새로고침하면 여전히
+    # "진행 중"으로 남아있는 기록이 다시 나타나는 문제가 있었다(리뷰 지적) - 몇 초든
+    # 종료 버튼을 누르면 그대로 종료·저장되게 바꾸고, 짧은 러닝은 그냥 짧은 기록으로 남긴다
+    record.duration_seconds = max(
+        0, int((record.ended_at - record.started_at).total_seconds()) - record.total_paused_seconds
     )
-    # 시간검증
-    if record.duration_seconds < 60:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="러닝시간이 너무 짧아 기록되지 않았습니다.",
-        )
     if record.duration_seconds > 86400:  # 24시간 초과 시
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
