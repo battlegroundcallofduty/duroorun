@@ -713,7 +713,6 @@ const CourseDetail = () => {
           <div className="review-summary-box">
             <h2>AI 리뷰 요약</h2>
             <p>{course.review_summary.summary}</p>
-            <span className="record-hint">리뷰 {course.review_summary.review_count}개 기준</span>
           </div>
         )}
 
