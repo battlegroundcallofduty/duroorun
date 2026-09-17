@@ -92,6 +92,8 @@ h2 { font-size:36px; letter-spacing:-1.5px; margin:8px 0 0; line-height:1.25; }
 .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 .steps div { border-top:1px solid #50706d; padding-top:18px; display:flex; flex-direction:column; }
 .steps b { color:#6edc95; font-size:12px; }.steps strong { margin:25px 0 8px; font-size:18px; }.steps span { color:#9fb3af; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:12px; line-height:1.6; }
+.data-source-note { margin:0; padding:16px clamp(24px,5vw,76px); text-align:center; color:#9fa8a5; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:11px; background:#fff; }
+
 @media (max-width:900px) { body { padding-bottom:calc(var(--bottom-tab-bar-h) + env(safe-area-inset-bottom,0px)); }.site-header nav { display:none; }.bottom-tab-bar { display:flex; height:calc(var(--bottom-tab-bar-h) + env(safe-area-inset-bottom,0px)); position:fixed; left:0; right:0; bottom:0; z-index:20; background:#fff; border-top:1px solid #e7ece9; padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); box-shadow:0 -6px 18px rgba(16,42,43,.08); }.bottom-tab-bar a { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; color:#8a9995; font-size:11px; }.bottom-tab-bar a.active { color:var(--green); }.bottom-tab-icon { width:26px; height:26px; opacity:.55; }.bottom-tab-bar a.active .bottom-tab-icon { opacity:1; }.bottom-tab-icon img { width:100%; height:100%; object-fit:contain; }.hero { grid-template-columns:1fr; }.hero-copy { padding-top:75px; }.hero-visual { min-height:500px; }.course-grid { grid-template-columns:1fr; }.popular-course-grid { display:flex; grid-template-columns:none; overflow-x:auto; gap:12px; padding-bottom:8px; scroll-snap-type:x proximity; scrollbar-width:thin; }.popular-course-grid .course-card-wrapper { flex:0 0 76%; scroll-snap-align:start; }.how { grid-template-columns:1fr; }.steps { gap:10px; } }
 @media (max-width:560px) { .site-header { height:70px; }.hero { padding-top:70px; }.hero-copy { padding:62px 22px 30px; }.hero-copy>p br { display:none; }.home-page h1 { font-size:34px; letter-spacing:-1.5px; }.home-page h2 { font-size:26px; letter-spacing:-1px; }.eyebrow { font-size:12px; }.hero-copy>p { font-size:14px; }.hero-buttons { align-items:flex-start; flex-direction:column; }.quick-stats { gap:13px; }.quick-stats div { padding-right:13px; }.quick-stats strong { font-size:17px; }.hero-visual { min-height:410px; }.crane { width:75%; }.crane-message { top:9%; }.location-pill { left:18px; }.discovery { padding:65px 22px; }.section-heading { align-items:flex-start; gap:20px; }.section-heading>a { white-space:nowrap; }.steps { grid-template-columns:1fr; }.steps div { display:grid; grid-template-columns:35px 100px 1fr; align-items:center; }.steps strong { margin:15px 0; }.how h2 { font-size:28px; } }
 
@@ -125,6 +127,9 @@ h2 { font-size:36px; letter-spacing:-1.5px; margin:8px 0 0; line-height:1.25; }
 .login-desc,.onboarding-desc { color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:14px; margin:0 0 28px; }
 .login-error { background:#fdecee; color:var(--red); font-size:13px; padding:10px 14px; border-radius:8px; margin:0 0 20px; }
 .login-buttons { display:flex; flex-direction:column; gap:12px; }
+.demo-admin-toggle { display:block; margin:20px auto 0; font-size:18px; color:#9aa9a5; }
+.demo-admin-form { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.demo-admin-form input { padding:12px 14px; border:1px solid #d7ded9; border-radius:8px; font-size:14px; }
 .social-button { border:0; border-radius:8px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; }
 .social-button.kakao { background:#fee500; color:#191600; }
 .social-button.naver { background:#03c75a; color:#fff; }
@@ -172,6 +177,8 @@ button.mypage-image-upload:disabled { opacity:.6; cursor:not-allowed; }
 .mypage-success { color:var(--green); font-size:13px; margin:14px 0 0; }
 .mypage-review-button { display:flex; justify-content:space-between; align-items:center; width:100%; max-width:360px; margin-top:32px; padding:16px 4px; border:0; border-top:1px solid #e1e7e2; background:transparent; color:var(--ink); font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:14px; cursor:pointer; }
 .mypage-review-button span { color:#9aa9a5; }
+.mypage-withdraw { margin-top:24px; }
+.mypage-withdraw .danger-text-button { color:var(--red); border-bottom-color:#f4a3b7; font-size:13px; }
 button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 
 /* 공개 프로필 (다른 유저 닉네임/거주지/만든 코스, 관리자면 강제 탈퇴 패널도 노출) */
@@ -334,6 +341,10 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .course-detail-images { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0 28px; }
 .course-detail-images img { width:160px; height:120px; object-fit:cover; border-radius:8px; }
 .course-detail-image-thumb { border:0; padding:0; background:none; line-height:0; cursor:pointer; }
+/* 리뷰 이미지는 여러 장 첨부될 수 있어(최대 5장) 줄바꿈 대신 가로 스크롤로 보여준다
+   (요청 반영) - course-detail-images(코스 사진, 줄바꿈)와는 다른 레이아웃이라 별도 클래스로 뺐다 */
+.review-item-images { display:flex; flex-wrap:nowrap; gap:10px; margin:12px 0; overflow-x:auto; padding-bottom:4px; }
+
 /* 사진 추가 타일 - 옆의 사진 카드(course-form-image, 130x100)와 같은 크기로 만들어
    같은 줄에 자연스럽게 낀다. mypage-image-upload(밑줄 텍스트 링크)는 여기선 존재감이
    너무 약해서, 파일 업로드에서 흔히 쓰는 점선 박스 + "+" 형태로 CustomCourseForm.jsx
@@ -347,12 +358,18 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
    테두리/배경이 남아 박스처럼 보인다 - <button class="text-button">에서만 그걸 지운다.
    <a>는 브라우저가 기본으로 손모양 커서를 보여주지만 <button>은 기본이 화살표라, 다른
    버튼(.weather-briefing-button 등)과 동일한 클릭 느낌이 나도록 커서도 맞춰준다 */
-button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; }
+button.text-button { background:transparent; border:0; border-radius:0; padding:0 0 5px; cursor:pointer; transition:color .15s ease; }
 button.text-button:disabled { cursor:not-allowed; }
 /* "이미지 추가"처럼 숨긴 파일 input을 감싸는 <label>도 버튼과 똑같이 커서가 기본값이라
    손모양이 안 떴다 - 동일하게 맞춘다 */
-label.text-button { cursor:pointer; }
+label.text-button { cursor:pointer; transition:color .15s ease; }
 label.text-button:has(input:disabled) { cursor:not-allowed; }
+/* 수정/삭제/이미지 추가 같은 리뷰 버튼들에 눌렀을 때 클릭이 실제로 됐는지 체감이 안
+   된다는 피드백(요청 반영) - 처음엔 눌림(scale) 효과였는데, 날씨 브리핑 버튼처럼 호버 시
+   색이 바뀌는 쪽으로 다시 요청받아 변경. disabled 상태에선 효과를 주지 않는다 */
+button.text-button:not(:disabled):hover,
+label.text-button:not(:has(input:disabled)):hover { color:var(--green); }
+.review-item-image button:active { transform:scale(.94); opacity:.75; }
 
 /* 코스 상세 - 리뷰 (목록/작성/수정/삭제) */
 .review-summary-box { margin:24px 0; padding:20px; background:var(--cream); border-radius:10px; }
@@ -395,16 +412,17 @@ button.attraction-card:hover { transform:translateY(-5px); box-shadow:0 14px 32p
    header/content/이미지가 기존과 동일하게 세로로 쌓이는 레이아웃을 유지한다 */
 .review-item-link { display:block; }
 .review-item-header { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-bottom:8px; }
-.review-author-link { margin-left:auto; font-size:12px; }
+.review-author-name { margin-left:auto; font-size:12px; color:#5c706c; cursor:pointer; transition:color .15s ease; }
+.review-author-name:hover { color:var(--green); }
 .review-item-content { margin:0; color:#3d524f; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:17px; line-height:1.7; white-space:pre-wrap; }
 .review-difficulty-badge { font-size:13px; font-weight:700; padding:5px 12px; border-radius:14px; color:#fff; }
 .review-difficulty-badge.green { background:var(--green); }
 .review-difficulty-badge.blue { background:var(--blue); }
 .review-difficulty-badge.red { background:var(--red); }
 .review-item-actions { display:flex; align-items:center; gap:16px; margin-top:12px; }
-.review-item-image { position:relative; display:inline-block; }
+.review-item-image { position:relative; display:inline-block; flex-shrink:0; }
 .review-item-image img { width:200px; height:150px; object-fit:cover; border-radius:8px; }
-.review-item-image button { position:absolute; top:4px; right:4px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(16,42,43,.7); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; }
+.review-item-image button { position:absolute; top:4px; right:4px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(16,42,43,.7); color:#fff; font-size:12px; line-height:1; cursor:pointer; padding:0; transition:transform .1s ease, opacity .1s ease; }
 
 /* 러닝 기록 시작/진행 */
 .record-page { max-width:520px; margin:0 auto; padding:60px 24px 80px; min-height:100vh; }
@@ -416,6 +434,9 @@ button.attraction-card:hover { transform:translateY(-5px); box-shadow:0 14px 32p
    지도 래퍼가 패널 너비를 그대로 차지하도록 편다(러닝 중 실시간 위치 지도) */
 .record-start-panel .kakao-map-wrapper { align-self:stretch; }
 .record-hint { color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; margin:0; }
+/* record-hint는 기본 margin:0(타이머 옆 등 다른 곳에서 딱 붙어야 하는 용도)이라, 여기는
+   위아래 다른 요소와 너무 붙어보인다는 피드백(요청 반영)으로 이 자리에서만 여백을 준다 */
+.my-review-manage-hint { margin:12px 0; }
 .record-live { color:var(--red); animation:record-blink 1s step-start infinite; }
 @keyframes record-blink { 50% { opacity:0; } }
 .button-spinner { display:inline-block; width:14px; height:14px; margin-right:8px; vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:button-spin .7s linear infinite; }
@@ -440,6 +461,10 @@ button.attraction-card:hover { transform:translateY(-5px); box-shadow:0 14px 32p
 .record-history-stats { display:flex; align-items:center; gap:16px; color:#5c706c; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; font-size:13px; }
 .record-badge { color:#82928e; font-size:12px; padding:4px 10px; border-radius:12px; background:#f1f1ee; }
 .record-badge.success { color:var(--green); background:#e3f6e9; }
+.record-badge.pending { color:var(--blue); background:#e6eef6; }
+/* 진행 중인 기록 카드를 통째로 링크로 감쌀 때(요청 반영) - .record-history-item의
+   flex 레이아웃을 그대로 유지해야 감싸기 전과 똑같이 보인다 */
+.record-history-item-link { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; width:100%; color:inherit; text-decoration:none; }
 .record-history-actions { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
 .record-history-review-link { font-size:12px; font-weight:600; text-decoration:none; }
 .record-history-delete { background:none; border:0; padding:4px 8px; font-size:12px; color:var(--red); font-weight:600; cursor:pointer; }

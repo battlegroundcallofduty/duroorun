@@ -28,7 +28,9 @@ from app.domain.course.models import Course, CourseType
 from app.domain.course.service import get_popular_courses
 from app.domain.facility.models import Facility, FacilityType
 from app.domain.record.models import Record
+from app.domain.review import service as review_service
 from app.domain.review.models import Review
+from app.domain.review.schemas import MyReviewListResponse
 from app.domain.user.models import BannedAccount, User, UserRole
 from app.domain.user.schemas import PublicProfileResponse
 from app.domain.user.service import force_withdraw_user as _force_withdraw_user
@@ -148,6 +150,24 @@ async def search_users(
         page=page,
         size=size,
     )
+
+
+async def get_user_reviews(
+    user_id: int, page: int, size: int, db: AsyncSession
+) -> MyReviewListResponse:
+    """특정 유저가 작성한 리뷰 목록 조회 (관리자 전용).
+
+    유저 검색(search_users)으로 찾은 유저를 눌러 들어갔을 때 그 사람이 쓴 리뷰를
+    보기 위한 용도. 탈퇴한 유저는 리뷰의 user_id가 이미 NULL로 분리돼있어 이 user_id로는
+    조회할 수 없으므로(활성 유저만 대상), get_active_user로 존재 확인 겸 404 처리한다.
+    """
+    user = await get_active_user(user_id, db)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="존재하지 않거나 이미 탈퇴한 유저입니다",
+        )
+    return await review_service.get_my_reviews(session=db, user_id=user_id, page=page, size=size)
 
 
 def _period_boundaries(now: datetime) -> tuple[datetime, datetime, datetime, datetime]:

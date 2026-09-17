@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     NAVER_CLIENT_SECRET: str = ""
     NAVER_REDIRECT_URI: str = ""
 
+    # 공모전 심사위원용 관리자 체험 로그인 (임시) - 비워두면 기능 자체가 비활성화됨.
+    # 공모전 끝나면 이 값들을 지워서 기능을 꺼야 함.
+    DEMO_ADMIN_EMAIL: str = ""
+    DEMO_ADMIN_PASSWORD: str = ""
+    # 닉네임은 나중에 바뀌거나 다른 유저가 재사용할 수 있어 식별자로 부적합 - 안 바뀌는
+    # PK로 고정한다 (코드리뷰 반영). 0이면 미설정으로 취급.
+    DEMO_ADMIN_USER_ID: int = 0
+
     # 두루누비
     DURUNUBI_API_KEY: str = ""
     DURUNUBI_BASE_URL: str = "https://apis.data.go.kr/B551011/Durunubi"
@@ -107,6 +115,11 @@ class Settings(BaseSettings):
 
     # 완주 인증 반경 (미터)
     COMPLETION_RADIUS_M: int = 300
+    # 완주 인증 최소 소요시간 (초). 기록 저장 자체는 몇 초든 막지 않지만(record/service.py
+    # end_record 참고), 시작/종료 지점이 가까운 짧은 코스에서 GPS 좌표 근접도만으로
+    # 완주 인증이 나면 제자리에서 GPS만 스푸핑해도 순식간에 "완주"로 인정될 수 있어(리뷰
+    # 지적) 완주 인증에는 이 최소 시간도 같이 요구한다
+    COMPLETION_MIN_DURATION_SECONDS: int = 60
 
     # 편의시설 반경 (미터) - 코스 상세 조회 시 이 반경 내 편의시설을 자동 표시.
     # 카카오 키워드 검색 호출 반경으로도 동일하게 사용.
