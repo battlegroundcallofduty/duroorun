@@ -55,6 +55,11 @@ const _haversineDistanceM = (a, b) => {
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
 
+// 관광지 카드 클릭 시 카카오맵 새 탭으로 연결 - 관광공사 데이터는 카카오 place id가 없어
+// 이름으로 키워드 검색하면 불일치 위험 있으므로, 좌표만 넘겨 정적 핀만 찍음.
+const _buildKakaoMapPinUrl = (name, lat, lng) =>
+  `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+
 // 날씨 브리핑은 내부에서 Gemini 호출해 평소보다 오래 걸릴 수 있음.
 // 백엔드 GEMINI_TIMEOUT_SECONDS(30초)가 사실상의 상한이라,
 // 무한정 기다리게 하지 않고 더 빨리 통제권(재시도) 돌려주기.
@@ -106,6 +111,11 @@ const CourseDetail = () => {
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // 커스텀 코스 첨부 사진(최대 3장) 원본 보기 - 프로필 사진 모달과 동일 방식
+  const courseImageModalRef = useRef(null);
+  const [enlargedImageUrl, setEnlargedImageUrl] = useState(null);
+  useFocusTrap(courseImageModalRef, Boolean(enlargedImageUrl));
 
   // 코스 날씨·안전 브리핑 - 버튼(모달) 처음 열 때 조회(lazy). 이후 재오픈 시엔
   // WEATHER_REFETCH_STALE_MS 안이면 재요청 생략, 지났으면 재조회.
@@ -254,12 +264,13 @@ const CourseDetail = () => {
     };
   }, [courseType, courseId]);
 
-  // 코스가 바뀌면 이전 코스의 날씨 브리핑 상태를 초기화
+  // 코스가 바뀌면 이전 코스의 날씨 브리핑 상태 + 열려있던 사진 모달을 초기화
   useEffect(() => {
     setIsWeatherModalOpen(false);
     setWeatherBriefing(null);
     setWeatherError('');
     weatherFetchedAtRef.current = null;
+    setEnlargedImageUrl(null);
   }, [courseId]);
 
   // 관광지 카드는 페이지 진입 시 바로 조회.
@@ -789,7 +800,15 @@ const CourseDetail = () => {
         {courseType === 'custom' && course.images?.length > 0 && (
           <div className="course-detail-images">
             {course.images.map((image) => (
-              <img key={image.image_id} src={image.image_url} alt={course.course_name} />
+              <button
+                key={image.image_id}
+                type="button"
+                className="course-detail-image-thumb"
+                onClick={() => setEnlargedImageUrl(image.image_url)}
+                aria-label="코스 사진 원본 보기"
+              >
+                <img src={image.image_url} alt={course.course_name} />
+              </button>
             ))}
           </div>
         )}
@@ -1019,9 +1038,17 @@ const CourseDetail = () => {
             </div>
             <div className="attraction-scroll-row" ref={attractionScrollRef}>
               {attractions.map((attraction) => (
-                <div
+                <button
                   key={attraction.content_id ?? attraction.title + attraction.latitude}
+                  type="button"
                   className="attraction-card"
+                  onClick={() =>
+                    window.open(
+                      _buildKakaoMapPinUrl(attraction.title, attraction.latitude, attraction.longitude),
+                      '_blank',
+                      'noopener,noreferrer'
+                    )
+                  }
                 >
                   {attraction.image_url ? (
                     <img
@@ -1055,12 +1082,38 @@ const CourseDetail = () => {
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
       </main>
+
+      {enlargedImageUrl && (
+        <div
+          ref={courseImageModalRef}
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="코스 사진 원본"
+          onClick={() => setEnlargedImageUrl(null)}
+        >
+          <button
+            type="button"
+            className="modal-close"
+            onClick={() => setEnlargedImageUrl(null)}
+            aria-label="닫기"
+          >
+            ×
+          </button>
+          <img
+            className="modal-image"
+            src={enlargedImageUrl}
+            alt="코스 사진 원본"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
 
       {isWeatherModalOpen && (
         <div

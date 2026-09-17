@@ -333,6 +333,7 @@ button.profile-avatar { border:0; padding:0; font:inherit; cursor:pointer; }
 .course-list-footer-note a { color:inherit; text-decoration:underline; }
 .course-detail-images { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0 28px; }
 .course-detail-images img { width:160px; height:120px; object-fit:cover; border-radius:8px; }
+.course-detail-image-thumb { border:0; padding:0; background:none; line-height:0; cursor:pointer; }
 /* 사진 추가 타일 - 옆의 사진 카드(course-form-image, 130x100)와 같은 크기로 만들어
    같은 줄에 자연스럽게 낀다. mypage-image-upload(밑줄 텍스트 링크)는 여기선 존재감이
    너무 약해서, 파일 업로드에서 흔히 쓰는 점선 박스 + "+" 형태로 CustomCourseForm.jsx
@@ -369,7 +370,9 @@ label.text-button:has(input:disabled) { cursor:not-allowed; }
 .attraction-scroll-row { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; scrollbar-width:thin; }
 .attraction-scroll-arrow { flex:none; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; border:1px solid #e1e7e2; background:#fff; color:var(--ink); font-size:18px; line-height:1; cursor:pointer; }
 .attraction-scroll-arrow:hover { border-color:var(--green); color:var(--green); }
-.attraction-card { flex:0 0 200px; border:1px solid #e1e7e2; border-radius:10px; overflow:hidden; background:#fff; }
+.attraction-card { flex:0 0 200px; border:1px solid #e1e7e2; border-radius:10px; overflow:hidden; background:#fff; transition:.25s ease; }
+button.attraction-card { display:block; padding:0; text-align:left; font:inherit; cursor:pointer; }
+button.attraction-card:hover { transform:translateY(-5px); box-shadow:0 14px 32px rgba(24,62,56,.12); }
 .attraction-card-image { display:block; width:100%; height:120px; object-fit:cover; background:#f1f5f1; }
 .attraction-card-image-empty { display:flex; align-items:center; justify-content:center; color:#a8bab3; background:linear-gradient(145deg,#eef2ee,#dde6e0); }
 .attraction-card-body { padding:12px; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif; }
