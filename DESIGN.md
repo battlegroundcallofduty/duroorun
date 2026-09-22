@@ -64,15 +64,16 @@
 
 ```css
 :root {
-  --color-green: #0db14b;
-  --color-blue: #005baa;
-  --color-red: #ed174c;
-  --color-gray: #77787b;
-  --color-ink: #102a2b;
-  --color-cream: #f6f4ec;
-  --color-border: #e1e7e2;
+  --green: #0db14b;
+  --blue: #005baa;
+  --red: #ed174c;
+  --gray: #77787b;
+  --ink: #102a2b;
+  --cream: #f6f4ec;
 }
 ```
+
+> 실제 정의는 `frontend/src/styles/global.css`의 `:root` 한 줄에 있습니다(`--color-` 접두어 없이 `--green`처럼 짧게 씀). 경계선(`#e1e7e2`) 등 나머지 팔레트 색상은 변수 없이 각 규칙에 리터럴 값으로 직접 쓰고 있습니다.
 
 ### 색상 사용 원칙
 

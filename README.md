@@ -1,8 +1,23 @@
 # 두루런 (Duroorun)
 
-한국 해안 트레일 러닝 서비스 — 두루누비 공식 코스 탐색, 커스텀 코스 생성, 러닝 기록 관리
+강원도 러닝 서비스 — 두루누비 공식 코스 탐색, 커스텀 코스 생성, 러닝 기록 관리
 
-> 배포 URL: https://duroorun.duckdns.org
+> **배포 URL** : https://duroorun.duckdns.org
+
+---
+
+## 공모전 정보
+
+| 항목 | 내용 |
+|------|------|
+| 공모전명 | 2026 관광데이터 활용 공모전 (웹·앱 개발 부문) |
+| 주관 | 한국관광공사 × Kakao |
+| 공식 개발 기간 | 2026.05.20 ~ 2026.09.21 |
+| 실제 개발 기간 | 2026.06 ~ 2026.09 (약 3개월, 커밋 기준) |
+| 진행 상태 | 제출 완료 |
+
+> [!IMPORTANT]
+> 두루누비 코스 데이터를 실시간 호출이 아닌 로컬 DB 저장 방식으로 활용하기 위해 한국관광공사에 별도 승인을 신청해 승인받았습니다 (2026-08-21 승인 완료). 신청서 및 승인 메일 원본은 [`docs/`](./docs/) 폴더 참고.
 
 ---
 
@@ -10,33 +25,271 @@
 
 | 이름 | 역할 | 담당 도메인 |
 |------|------|------------|
-| 도희 (팀장) | 풀스택 | 회원/인증/관리자/배포 |
-| 지영 | 풀스택 | 코스/편의시설 |
-| 유선 | 풀스택 | 기록/리뷰+이미지 |
+| [도희 (팀장)](https://github.com/kittyjoa) | 풀스택 | 회원(인증)/관리자/배포 |
+| [지영](https://github.com/battlegroundcallofduty) | 풀스택 | 코스 / 편의시설 |
+| [유선](https://github.com/kimyuseon) | 풀스택 | 기록/리뷰+이미지 |
 
 ---
 
-## 관광 데이터 활용 승인
+## 데모
 
-두루누비 코스 데이터를 실시간 호출이 아닌 로컬 DB 저장 방식으로 활용하기 위해 한국관광공사에 별도 승인을 신청해 승인받았습니다 (2026-08-21 승인 완료). 신청서 및 승인 메일 원본은 [`docs/`](./docs/) 폴더 참고.
+<table>
+  <tr><th align="center">1. 로그인 → 코스 목록/필터 → 코스 상세</th></tr>
+  <tr><td align="center"><img src="assets/Animation_search.gif" width="100%"></td></tr>
+  <tr><th align="center">2. AI 코스 날씨·안전 브리핑</th></tr>
+  <tr><td align="center"><img src="assets/Animation_weather.gif" width="100%"></td></tr>
+  <tr><th align="center">3. 커스텀 코스 생성</th></tr>
+  <tr><td align="center"><img src="assets/Animation_custom.gif" width="100%"></td></tr>
+  <tr><th align="center">4. 러닝 시작 → 완주 인증 → 리뷰 작성(AI 요약)</th></tr>
+  <tr><td align="center"><img src="assets/Animation_review.gif" width="100%"></td></tr>
+  <tr><th align="center">5. 관리자 페이지 (코스/편의시설 관리, 대시보드)</th></tr>
+  <tr><td align="center"><img src="assets/Animation_admin.gif" width="100%"></td></tr>
+</table>
+
+---
+
+## 주요 기능
+
+- **회원 (인증)** — Google / Kakao / Naver 소셜 로그인 전용
+- **프로필 (마이페이지)** — 내 러닝 기록·리뷰 조회 및 관리, 회원 탈퇴
+- **코스** — 두루누비 공식 코스(DRNB) 탐색 + 커스텀 코스 생성(강원도 전역), AI 코스 날씨·안전 브리핑, 시작/종료 지점 주변 관광지 추천
+- **러닝 기록** — GPS 기반 시작/일시정지/재시작/종료, 좌표·시간 기준 완주 인증
+- **리뷰** — 코스별 리뷰 작성(사진 포함), 리뷰 3개 이상부터 AI 요약 제공
+- **편의시설** — 코스 반경 내 화장실/주차장/보관함/편의점 지도 표시
+- **관리자** — 코스·편의시설 관리, 리뷰 삭제, 유저 강제탈퇴/밴 관리, 대시보드 통계
+
+> 화면별 상세 동작과 비즈니스 로직은 [FEATURES.md](./FEATURES.md) 참고.
 
 ---
 
 ## 기술 스택
 
-### 백엔드
-- **Framework**: FastAPI (Python 3.11)
-- **Database**: PostgreSQL 16, SQLAlchemy 2.x async + Alembic
-- **Cache**: Redis (JWT 블랙리스트/Refresh Token, OAuth state, AI 날씨·안전 브리핑 캐싱, rate limit)
-- **Auth**: JWT (소셜 로그인 전용 — Google / Kakao / Naver). Access Token(30분, sessionStorage — 브라우저 종료 시 로그아웃) + Refresh Token(14일, httpOnly 쿠키)
-- **Storage**: Cloudflare R2
-- **AI**: Gemini API (AI 리뷰 요약 — 리뷰 3개 이상 코스)
-- **Infra**: Docker, AWS EC2, GitHub Actions (CI/CD)
-- **Linter**: Ruff
+### Backend
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.x_async-D71F00?logo=sqlalchemy&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Alembic](https://img.shields.io/badge/Alembic-migration-4B8BBE)
+![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)
 
-### 프론트엔드
-- **Framework**: React
-- **지도**: 카카오맵 API
+### Authentication
+![JWT](https://img.shields.io/badge/JWT-PyJWT-000000?logo=jsonwebtokens&logoColor=white)
+![Google OAuth](https://img.shields.io/badge/Google_OAuth-4285F4?logo=google&logoColor=white)
+![Kakao Login](https://img.shields.io/badge/Kakao_Login-FFCD00?logo=kakaotalk&logoColor=000000)
+![Naver Login](https://img.shields.io/badge/Naver_Login-03C75A?logo=naver&logoColor=white)
+
+### Frontend
+![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-CA4245?logo=reactrouter&logoColor=white)
+
+### Maps & Geolocation
+![Kakao Map API](https://img.shields.io/badge/Kakao_Map_API-FFCD00?logo=kakaotalk&logoColor=000000)
+![Kakao Local API](https://img.shields.io/badge/Kakao_Local_API-FFCD00?logo=kakaotalk&logoColor=000000)
+![Shapely](https://img.shields.io/badge/Shapely-경계_검증-1F6F43)
+![gpxpy](https://img.shields.io/badge/gpxpy-GPX_파싱-FF7A00)
+
+### AI
+![Gemini API](https://img.shields.io/badge/Gemini_API-3.5_Flash--Lite-8E75B2?logo=googlegemini&logoColor=white)
+
+### 공공데이터 (한국관광공사 · 기상청)
+> 4개 API 모두 [data.go.kr](https://www.data.go.kr) 공공데이터포털을 통해 별도 승인받아 사용 중입니다.
+
+![두루누비 API](https://img.shields.io/badge/두루누비_API-한국관광공사-1B7A43)
+![국문관광정보 API](https://img.shields.io/badge/국문관광정보_API-한국관광공사-1B7A43)
+![단기예보 조회서비스](https://img.shields.io/badge/단기예보_조회서비스-기상청-005BAC)
+![기상특보 조회서비스](https://img.shields.io/badge/기상특보_조회서비스-기상청-005BAC)
+
+### Infrastructure & Deployment
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?logo=amazonec2&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
+![Cloudflare R2](https://img.shields.io/badge/Cloudflare_R2-F38020?logo=cloudflare&logoColor=white)
+![APScheduler](https://img.shields.io/badge/APScheduler-일일_배치-7B68EE)
+![Discord Webhook](https://img.shields.io/badge/Discord_Webhook-5865F2?logo=discord&logoColor=white)
+
+### Testing & Linting
+![Ruff](https://img.shields.io/badge/Ruff-lint%2Fformat-D7FF64?logo=ruff&logoColor=000000)
+![pytest](https://img.shields.io/badge/pytest-31_files-0A9EDC?logo=pytest&logoColor=white)
+
+> [!NOTE]
+> ⚠️ 한국교통안전공단 주차정보 API(`app/scripts/seed_facilities_parking.py`)는 승인은 받았지만 응답 불안정으로 운영 서버 스케줄러에는 등록하지 않았습니다. 자세한 내용은 [FEATURES.md](./FEATURES.md) 참고.
+
+---
+
+## 아키텍처
+
+```mermaid
+flowchart TD
+    FE["React + Vite<br/>(클라이언트)"]
+
+    subgraph Backend["AWS EC2"]
+        direction LR
+        BE["FastAPI"]
+        SCHED["APScheduler<br/>매일 08:00 코스 시드"]
+    end
+
+    subgraph Data["데이터 저장소"]
+        direction LR
+        DB[("PostgreSQL")]
+        CACHE[("Redis")]
+    end
+
+    subgraph External["외부 연동"]
+        direction LR
+        Auth["OAuth<br/>Google · Kakao · Naver"]
+        Map["카카오맵 API"]
+        AI["Gemini API"]
+        Gov["공공데이터<br/>관광공사 · 기상청"]
+        R2["Cloudflare R2"]
+    end
+
+    Discord["Discord Webhook"]
+    CICD["GitHub Actions<br/>lint → test → deploy"]
+
+    FE <-->|"REST + JWT"| BE
+    BE --> Data
+    BE --> External
+    SCHED -.-> Gov
+    SCHED -.실패 시 알림.-> Discord
+    CICD -.main 머지 시 배포.-> Backend
+
+    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:1.5px
+    classDef backend fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef data fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef external fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:1.5px
+    classDef infra fill:#E5E7EB,stroke:#4B5563,color:#111827,stroke-width:1.5px
+
+    class FE client
+    class BE,SCHED backend
+    class DB,CACHE data
+    class Auth,Map,AI,Gov,R2 external
+    class Discord,CICD infra
+
+    style Backend fill:#FFFBEB,stroke:#F59E0B
+    style Data fill:#F0FDF4,stroke:#22C55E
+    style External fill:#FDF2F8,stroke:#EC4899
+```
+
+---
+
+## 문서
+
+| 문서 | 내용 |
+|------|------|
+| [FEATURES.md](./FEATURES.md) | 전체 기능 명세 — 화면별 동작, 비즈니스 로직, 결정 배경 |
+| [DATABASE.md](./DATABASE.md) | DB 스키마 설계, 테이블 상세, 마이그레이션 운영 방법 |
+| [DESIGN.md](./DESIGN.md) | 디자인 가이드 — 브랜드 컬러, 타이포그래피, 화면 구조 |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | 코딩 컨벤션, Git/PR 작업 규칙, 보안 유의사항 |
+
+---
+
+## 테스트
+
+pytest 기반, 도메인별로 분리되어 있습니다 (총 31개 파일).
+
+### 실행 방법
+
+```bash
+pytest
+```
+
+> CI(`.github/workflows/deploy.yml`)에서도 동일하게 실행됩니다 — postgres + redis 서비스 컨테이너를 띄우고 `alembic upgrade head` 후 `pytest`. `lint` → `test` 잡을 모두 통과해야 `deploy` 잡이 실행됩니다.
+
+### 커버 범위 요약
+
+| 도메인 | 파일 수 | 주요 검증 내용 |
+|--------|:---:|------|
+| 회원/인증 | 4 | 소셜 로그인, 토큰 재발급/로그아웃/탈퇴, OAuth 콜백 신규/기존 유저 분기, 보안 헬퍼 |
+| 코스 | 3 | 커스텀 코스, 랜딩 통계, 두루누비 시드 upsert(관리자 잠금 존중) |
+| 러닝 기록 | 4 | pause/resume/end 동시 요청, 중복 시작 방지, 기록 응답 정합성 |
+| 리뷰 | 10 | 수정/삭제 권한, 동시성(이미지 업로드/작성 제한/1코스 1리뷰), R2 업로드 롤백, AI 요약 임계값·락·쿨다운 |
+| 편의시설 | 1 | 관리자 잠금(`is_admin_edited`), 반경 매칭 포함/제외 override |
+| 날씨(AI 브리핑) | 6 | 기상청 격자좌표 변환, 특보 파싱, 캐시 스키마 불일치 복구, 순수 함수(condition/tip) |
+| 관광지 추천 | 1 | 기본 조회, 부분 실패 스킵, rate limit·일일 쿼터 |
+| 관리자 | 2 | 강제 탈퇴/밴 관리, 대시보드 통계, 라우터 권한 |
+
+---
+
+## 프로젝트 구조
+
+```
+app/
+├── main.py                  # FastAPI 앱 진입점
+├── config.py                # 환경변수 설정
+├── database.py               # DB 연결 관리
+├── redis.py                  # Redis 연결 관리
+├── core/
+│   └── security.py          # JWT 발급/검증, 블랙리스트
+├── api/v1/
+│   └── router.py             # API 라우터 통합
+├── domain/
+│   ├── user/                # 회원/인증/관리자
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── router.py
+│   │   └── service.py
+│   ├── course/               # 코스 (DRNB + 커스텀)
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── router.py
+│   │   └── service.py
+│   ├── record/               # 러닝 기록
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── router.py
+│   │   └── service.py
+│   ├── review/                # 리뷰 + 이미지
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── router.py
+│   │   └── service.py
+│   ├── facility/              # 편의시설
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── router.py
+│   │   └── service.py
+│   └── admin/                # 관리자 대시보드
+│       ├── router.py
+│       └── service.py
+├── clients/
+│   ├── r2.py                 # Cloudflare R2 파일 업로드/삭제
+│   ├── durunubi.py            # 두루누비 API 연동 (캐싱 없이 시드 스크립트가 배치 호출)
+│   └── gemini.py              # Gemini API 연동 (리뷰 요약 생성)
+└── scripts/
+    ├── seed_courses.py       # 두루누비 코스 시드 스크립트 (스케줄러가 매일 08:00 자동 실행)
+    └── seed_dummy_data.py     # 공모전 데모용 더미 데이터 시딩 스크립트
+
+frontend/                    # 프론트엔드 (React + Vite)
+├── public/
+├── src/
+│   ├── main.jsx              # 앱 진입점
+│   ├── App.jsx                # 라우터 설정
+│   ├── api/                   # API 호출 함수
+│   │   └── index.js           # 공통 API 헬퍼 (JWT 자동 포함 + credentials)
+│   ├── components/            # 공통 컴포넌트
+│   ├── pages/                 # 페이지 컴포넌트
+│   │   ├── Login.jsx
+│   │   ├── CourseList.jsx
+│   │   ├── CourseDetail.jsx
+│   │   ├── RecordStart.jsx
+│   │   ├── MyPage.jsx
+│   │   └── Admin.jsx
+│   └── hooks/                 # 커스텀 훅
+└── package.json               # Vite 초기화 시 생성
+
+tests/                        # 테스트 (각 도메인 작업 시 추가)
+alembic/                      # 마이그레이션 (alembic init 시 생성)
+
+# 루트 설정 파일
+.env.example                  # 환경변수 목록 (복사해서 .env로 사용)
+.gitignore
+requirements.txt              # 파이썬 의존성
+pyproject.toml                # Ruff 설정
+Dockerfile                    # 백엔드 이미지 (pip 기반)
+docker-compose.yml            # PostgreSQL + Redis + 백엔드
+alembic.ini                   # Alembic 설정 (alembic init 시 생성)
+```
 
 ---
 
@@ -214,269 +467,9 @@ docker compose up --build
 
 ## API 문서
 
-서버 실행 후 Swagger UI 확인:
+로컬 서버 실행 후 Swagger UI 확인:
 
 - http://localhost:8000/docs
-
----
-
-## 린터 (Ruff)
-
-코드 품질 유지를 위해 [Ruff](https://docs.astral.sh/ruff/)를 사용합니다. 설정은 `pyproject.toml`에 정의되어 있습니다.
-
-```bash
-# 설치
-pip install ruff
-
-# 린트 검사
-ruff check app/
-
-# 자동 수정
-ruff check app/ --fix
-
-# 코드 포맷팅
-ruff format app/
-```
-
-> PR 올리기 전 반드시 `ruff check app/` 통과 확인 후 푸시
-
----
-
-## 프로젝트 구조
-
-```
-app/
-├── main.py                  # FastAPI 앱 진입점
-├── config.py                # 환경변수 설정
-├── database.py              # DB 연결 관리
-├── redis.py                 # Redis 연결 관리
-├── core/
-│   └── security.py          # JWT 발급/검증, 블랙리스트
-├── api/v1/
-│   └── router.py            # API 라우터 통합
-├── domain/
-│   ├── user/                # 회원/인증/관리자
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── router.py
-│   │   └── service.py
-│   ├── course/              # 코스 (DRNB + 커스텀)
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── router.py
-│   │   └── service.py
-│   ├── record/              # 러닝 기록
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── router.py
-│   │   └── service.py
-│   ├── review/              # 리뷰 + 이미지
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── router.py
-│   │   └── service.py
-│   ├── facility/            # 편의시설
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── router.py
-│   │   └── service.py
-│   └── admin/               # 관리자 대시보드
-│       ├── router.py
-│       └── service.py
-├── clients/
-│   ├── r2.py                # Cloudflare R2 파일 업로드/삭제
-│   ├── durunubi.py          # 두루누비 API 연동 (캐싱 없이 시드 스크립트가 배치 호출)
-│   └── gemini.py            # Gemini API 연동 (리뷰 요약 생성)
-└── scripts/
-    ├── seed_courses.py      # 두루누비 코스 시드 스크립트 (스케줄러가 매일 08:00 자동 실행)
-    └── seed_dummy_data.py   # 공모전 데모용 더미 데이터 시딩 스크립트
-
-frontend/                    # 프론트엔드 (React + Vite)
-├── public/
-├── src/
-│   ├── main.jsx             # 앱 진입점
-│   ├── App.jsx              # 라우터 설정
-│   ├── api/                 # API 호출 함수
-│   │   └── index.js         # 공통 API 헬퍼 (JWT 자동 포함 + credentials)
-│   ├── components/          # 공통 컴포넌트
-│   ├── pages/               # 페이지 컴포넌트
-│   │   ├── Login.jsx
-│   │   ├── CourseList.jsx
-│   │   ├── CourseDetail.jsx
-│   │   ├── RecordStart.jsx
-│   │   ├── MyPage.jsx
-│   │   └── Admin.jsx
-│   └── hooks/               # 커스텀 훅
-└── package.json             # Vite 초기화 시 생성
-
-tests/                       # 테스트 (각 도메인 작업 시 추가)
-alembic/                     # 마이그레이션 (alembic init 시 생성)
-
-# 루트 설정 파일
-.env.example                 # 환경변수 목록 (복사해서 .env로 사용)
-.gitignore
-requirements.txt             # 파이썬 의존성
-pyproject.toml               # Ruff 설정
-Dockerfile                   # 백엔드 이미지 (pip 기반)
-docker-compose.yml           # PostgreSQL + Redis + 백엔드
-alembic.ini                  # Alembic 설정 (alembic init 시 생성)
-```
-
----
-
-## Git 작업 가이드
-
-### 0. Git 명령어 기본 용어
-
-| 용어 | 의미 | 예시 |
-|------|------|------|
-| `origin` | GitHub 원격 저장소의 별명 | `origin` = `https://github.com/...` |
-| `feature/user` | 내 컴퓨터(로컬)의 브랜치 | `git checkout feature/user` |
-| `origin/main` | GitHub(원격)의 main 브랜치 | `git merge origin/main` |
-
-**origin을 붙이는 기준:**
-- **내 컴퓨터에서 이동**할 때 → origin 안 붙임 (`git checkout feature/user`)
-- **GitHub의 코드를 참조**할 때 → origin 붙임 (`git merge origin/main`, `git push origin 내브랜치`)
-
-자주 쓰는 명령어:
-
-| 명령어 | 하는 일 |
-|--------|---------|
-| `git fetch origin` | GitHub에서 최신 정보를 가져옴 (내 코드는 안 바뀜) |
-| `git merge origin/main` | GitHub의 main 코드를 내 브랜치에 합침 |
-| `git checkout 브랜치명` | 다른 브랜치로 이동 |
-| `git status` | 변경된 파일 목록 확인 |
-| `git add 파일명` | 커밋할 파일을 지정 |
-| `git commit -m "메시지"` | 변경사항을 저장 (커밋) |
-| `git push origin 브랜치명` | 내 커밋을 GitHub에 업로드 |
-
-### 1. 브랜치 전략
-
-```
-main ← feature/user
-main ← feature/course
-main ← feature/record
-```
-
-- `main`: 항상 배포 가능한 상태 유지
-- `feature/도메인명`: 각자 담당 도메인 브랜치에서 작업
-
-### 2. 커밋 메시지 규칙
-
-| 타입 | 설명 | 예시 |
-|------|------|------|
-| `feat` | 새 기능 | `[feat] 소셜 로그인 구현` |
-| `fix` | 버그 수정 | `[fix] 코스 필터 오류 수정` |
-| `docs` | 문서 수정 | `[docs] README 업데이트` |
-| `refactor` | 코드 리팩토링 | `[refactor] 기록 서비스 로직 정리` |
-| `chore` | 설정, 패키지 등 | `[chore] 의존성 추가` |
-| `test` | 테스트 코드 | `[test] 유저 인증 테스트 추가` |
-
-### 3. PR 올리기 전 main 최신화 필수
-
-PR을 올리기 전에 반드시 최신 main을 내 브랜치에 반영해야 합니다.
-
-```bash
-git fetch origin
-git merge origin/main
-# 충돌이 있으면 해결 후 커밋
-```
-
-### 4. `git add .` 사용 금지
-
-`git add .`이나 `git add -A`를 사용하면 **본인이 수정하지 않은 파일까지 커밋에 포함**됩니다.
-
-#### 올바른 커밋 순서
-
-```bash
-# 1단계: 변경된 파일 목록 확인
-git status
-
-# 2단계: 본인이 작업한 파일만 골라서 추가
-git add app/domain/course/service.py
-git add app/domain/course/router.py
-
-# 3단계: 스테이징된 파일이 내 것만인지 다시 확인
-git diff --staged --stat
-
-# 4단계: 커밋
-git commit -m "[feat] 코스 필터 API 구현"
-```
-
-#### 특정 폴더 안의 파일만 추가하고 싶을 때
-
-```bash
-git add app/domain/course/
-```
-
-#### 실수로 다른 파일까지 add 했을 때
-
-```bash
-# 특정 파일을 스테이징에서 제거 (파일 내용은 유지됨)
-git restore --staged app/config.py
-```
-
-### 5. 공통 파일 수정 시 팀 공유
-
-아래 파일들은 여러 파트에서 사용하므로, 수정 전에 반드시 팀에 알려주세요.
-
-| 공통 파일 | 역할 |
-|-----------|------|
-| `app/config.py` | 환경변수 설정 |
-| `app/database.py` | DB 연결 관리 |
-| `app/redis.py` | Redis 연결 관리 |
-| `app/main.py` | FastAPI 앱 진입점 |
-| `app/api/v1/router.py` | API 라우터 통합 |
-| `requirements.txt` | 패키지 의존성 |
-| `frontend/src/App.jsx` | 라우터 설정 (전체 페이지 라우트 관리) |
-| `frontend/package.json` | 프론트 패키지 의존성 |
-
-공통 파일 수정이 필요하면:
-1. 팀 채팅에 수정 내용 공유
-2. **별도 PR로 먼저 머지**
-3. 나머지 팀원이 `git fetch origin && git merge origin/main`으로 반영
-
-### 6. 전체 작업 흐름 요약
-
-```
-작업 시작
-  └─ git fetch origin && git merge origin/main   (최신화)
-  └─ 코드 작업
-  └─ ruff check app/                              (린트 확인)
-  └─ git status                                   (변경 파일 확인)
-  └─ git add 내파일만                              (본인 파일만 추가)
-  └─ git diff --staged --stat                     (스테이징 확인)
-  └─ git commit -m "[담당 도메인] 작업내용"          (커밋, 예: [user_admin] ...)
-  └─ git fetch origin && git merge origin/main    (PR 전 다시 최신화)
-  └─ git push origin 내브랜치                      (푸시)
-  └─ GitHub에서 PR 생성 → 팀원 리뷰 → 머지
-  └─ 머지 후 전체 팀원 git fetch origin && git merge origin/main
-```
-
-> ⚠️ **`main`에 머지되는 순간 GitHub Actions가 자동으로 실제 서버에 배포합니다** (`.github/workflows/deploy.yml`: lint → test 통과 시 즉시 배포). "머지 = 배포"이니 신중하게 머지하세요.
-
----
-
-## 코딩 컨벤션
-
-네이밍, 타입 힌트, Docstring, 주석 규칙 등 상세 컨벤션은 [CONTRIBUTING.md](./CONTRIBUTING.md)를 참고하세요.
-
----
-
-- `.env` 절대 커밋 금지 (`.gitignore`에 포함). `.env.example`로 필요한 변수 목록만 공유
-- JWT: Access Token(30분, sessionStorage) + Refresh Token(14일, httpOnly 쿠키). Refresh는 유저당 1개 저장(Redis `refresh:{user_id}`), 재발급 시 토큰 로테이션
-- 로그아웃/탈퇴 시 Access는 Redis 블랙리스트(`blacklist:{access_jti}`) 등록, Refresh는 Redis에서 삭제
-- Refresh 쿠키는 `/api/v1/auth/refresh` 경로 한정. `samesite=lax`는 로컬/프로덕션 공통, `secure`만 환경 분기(로컬 `False`, 프로덕션 `True`) — 프론트/API가 완전히 같은 도메인이라 `lax`로 충분함
-- CORS 허용 주소 명시 (`*` 사용 금지, 우리 프론트 주소만 허용). httpOnly 쿠키 사용으로 `allow_credentials=True` 필수, 프론트는 `credentials: 'include'`
-- 소셜 로그인 OAuth state 검증 필수 (CSRF 방지). state는 Redis(`oauth:state:{provider}:{state}`, TTL 5분) 저장 + 로그인을 시작한 브라우저인지 확인하는 짧은 만료의 `oauth_state` httpOnly 쿠키로 이중 검증
-- API 소유권 검증 필수 (본인 리소스만 수정/삭제 가능. `user_id` 검증 챙기기)
-
----
-
-## 개발 팁
-
-### R2 이미지 삭제 순서
-DB 트랜잭션 성공(commit) 후에 R2 삭제 API 호출. 트랜잭션 실패 시 R2 파일만 지워지는 현상 방지.
 
 ---
 
